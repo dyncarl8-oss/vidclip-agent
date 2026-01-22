@@ -8,7 +8,7 @@
   },
   "license": "UNLICENSED",
   "scripts": {
-    "start": "node bin/server.js",
+    "start": "node build/bin/server.js",
     "build": "pnpm run build:frontend && pnpm run build:api",
     "build:api": "node ace build",
     "build:frontend": "pnpm --filter pocat-frontend run build",
