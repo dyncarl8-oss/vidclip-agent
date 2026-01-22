@@ -1,0 +1,9 @@
+packages:
+  - 'frontend'
+  - '.'
+
+onlyBuiltDependencies:
+  - '@swc/core'
+  - better-sqlite3
+  - puppeteer
+  - sqlite3
