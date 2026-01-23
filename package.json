@@ -68,6 +68,8 @@
     "@adonisjs/static": "^1.1.1",
     "@distube/ytdl-core": "^4.16.12",
     "@libsql/client": "^0.15.15",
+    "libsql": "^0.3.16",
+    "@libsql/sqlite3": "^0.3.1",
     "@types/multer": "^2.0.0",
     "@types/puppeteer": "^7.0.4",
     "@vinejs/vine": "^3.0.1",
