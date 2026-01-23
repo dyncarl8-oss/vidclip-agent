@@ -2,6 +2,7 @@ import { exec } from 'child_process'
 import { promisify } from 'util'
 import path from 'path'
 import fs from 'fs/promises'
+import env from '#start/env'
 
 const execAsync = promisify(exec)
 
@@ -11,8 +12,8 @@ export class YtDlpDownloader {
 
   constructor() {
     this.downloadDir = path.join(process.cwd(), 'storage', 'downloads')
-    // Use poetry from root directory
-    this.ytDlpPath = 'cd ../youtube-dl-test && poetry run yt-dlp'
+    // Use env variable or default to 'yt-dlp'
+    this.ytDlpPath = env.get('YT_DLP_PATH') || 'yt-dlp'
   }
 
   async downloadVideo(url: string, filename?: string, quality: string = '720p'): Promise<string> {

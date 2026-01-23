@@ -1,5 +1,5 @@
 import type { HttpContext } from '@adonisjs/core/http'
-import ytdl from '@distube/ytdl-core'
+import videoProcessor from '#services/enhanced_video_processor'
 
 export default class VideosController {
   // Disable streaming for now - YouTube blocks it
@@ -24,28 +24,31 @@ export default class VideosController {
   async info({ request, response }: HttpContext) {
     const url = request.input('url')
 
-    if (!url || !ytdl.validateURL(url)) {
+    if (!url) {
       return response.badRequest({
         success: false,
-        message: 'Invalid YouTube URL'
+        message: 'YouTube URL is required'
       })
     }
 
     try {
-      const info = await ytdl.getInfo(url)
+      const result = await videoProcessor.getVideoInfo(url)
 
       // Set CORS headers
       response.header('Access-Control-Allow-Origin', '*')
 
+      if (!result.success) {
+        return response.internalServerError({
+          success: false,
+          message: 'Error getting video info',
+          error: result.error
+        })
+      }
+
       return response.json({
         success: true,
         data: {
-          title: info.videoDetails.title,
-          duration: info.videoDetails.lengthSeconds,
-          thumbnail: info.videoDetails.thumbnails[0]?.url,
-          description: info.videoDetails.description,
-          author: info.videoDetails.author.name,
-          viewCount: info.videoDetails.viewCount,
+          ...result.data,
           // Add streaming status
           streamingAvailable: false,
           message: 'Video info available, but streaming disabled due to YouTube restrictions'
