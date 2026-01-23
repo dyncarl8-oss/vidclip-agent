@@ -27,7 +27,7 @@ const dbConfig = defineConfig({
     turso: {
       client: 'libsql',
       connection: {
-        url: env.get('TURSO_DATABASE_URL'),
+        filename: env.get('TURSO_DATABASE_URL'),
         authToken: env.get('TURSO_AUTH_TOKEN'),
       } as any,
       useNullAsDefault: true,
