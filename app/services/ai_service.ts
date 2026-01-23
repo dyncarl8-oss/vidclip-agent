@@ -1,5 +1,4 @@
-import VideoProject from '#models/video_project'
-import Clip from '#models/clip'
+import databaseService from '#services/database_service'
 
 export class AiService {
     /**
@@ -10,8 +9,9 @@ export class AiService {
         console.log(`🤖 AI Analysis started for project ${projectId}`)
 
         try {
-            const project = await VideoProject.find(projectId)
-            if (!project) return
+            const projectResult = await databaseService.execute('SELECT id, duration FROM video_projects WHERE id = ?', [projectId])
+            if (projectResult.rows.length === 0) return
+            const project = projectResult.rows[0] as any
 
             // Simulate AI analysis time
             await new Promise(resolve => setTimeout(resolve, 5000))
@@ -47,18 +47,22 @@ export class AiService {
             ]
 
             for (const data of clipsToCreate) {
-                await Clip.create({
-                    videoProjectId: projectId,
-                    title: data.title,
-                    startTime: data.startTime,
-                    endTime: data.endTime,
-                    status: 'pending',
-                    score: data.score
-                })
+                await databaseService.execute(`
+                    INSERT INTO clips (video_project_id, title, start_time, end_time, status, score, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+                `, [
+                    projectId,
+                    data.title,
+                    data.startTime,
+                    data.endTime,
+                    'pending',
+                    data.score
+                ])
             }
 
-            project.status = 'completed' // or 'clips_ready'
-            await project.save()
+            await databaseService.execute(`
+                UPDATE video_projects SET status = 'completed', updated_at = datetime('now') WHERE id = ?
+            `, [projectId])
 
             console.log(`✅ AI Analysis completed. Generated ${clipsToCreate.length} clips for project ${projectId}`)
         } catch (error) {

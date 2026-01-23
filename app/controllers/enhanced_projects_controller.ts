@@ -1,6 +1,4 @@
 import type { HttpContext } from '@adonisjs/core/http'
-import VideoProject from '#models/video_project'
-import User from '#models/user'
 import enhancedVideoProcessor from '#services/enhanced_video_processor'
 import videoReferenceService from '#services/video_reference_service'
 import databaseService from '#services/database_service'
@@ -70,36 +68,43 @@ export default class EnhancedProjectsController {
 
       // Ensure user exists (hack for MVP/Demo)
       console.log(`👤 Checking for user ${userId}...`)
-      let user = await User.find(userId)
-      if (!user) {
+      const userResult = await databaseService.execute('SELECT id FROM users WHERE id = ?', [userId])
+      let finalUserId = userId
+
+      if (userResult.rows.length === 0) {
         if (userId === 1 || userId === '1') {
           console.log(`👤 User 1 not found, creating default user...`)
-          user = new User()
-          user.fullName = 'Default User'
-          user.email = 'user@example.com'
-          user.password = 'password123'
-          await user.save()
-          console.log(`✅ Default user created with ID: ${user.id}`)
+          const newUser = await databaseService.execute(
+            'INSERT INTO users (full_name, email, password, created_at, updated_at) VALUES (?, ?, ?, datetime("now"), datetime("now"))',
+            ['Default User', 'user@example.com', 'password123']
+          )
+          finalUserId = Number(newUser.lastInsertRowid) || 1
+          console.log(`✅ Default user created with ID: ${finalUserId}`)
         } else {
           console.warn(`⚠️ User ${userId} not found and is not default ID 1.`)
         }
       } else {
-        console.log(`✅ User ${userId} found.`)
+        finalUserId = userResult.rows[0].id
+        console.log(`✅ User ${finalUserId} found.`)
       }
 
       console.log(`📁 Creating project in database...`)
-      // Create project in database using Lucid ORM
-      const project = await VideoProject.create({
-        userId: user ? user.id : userId, // Use actual user ID if found/created
-        title: title,
-        youtubeUrl: cleanUrl, // Use clean URL here
-        videoMetadata: videoInfo.data,
-        duration: videoInfo.data.duration,
-        thumbnailUrl: videoInfo.data.thumbnail,
-        status: 'processing'  // Use valid status from model
-      })
+      // Create project in database using Raw SQL via databaseService
+      const insertProject = await databaseService.execute(`
+        INSERT INTO video_projects (
+          user_id, title, youtube_url, video_metadata, 
+          duration, thumbnail_url, status, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, 'processing', datetime('now'), datetime('now'))
+      `, [
+        finalUserId,
+        title,
+        cleanUrl,
+        JSON.stringify(videoInfo.data),
+        videoInfo.data.duration,
+        videoInfo.data.thumbnail
+      ])
 
-      const projectId = project.id
+      const projectId = Number(insertProject.lastInsertRowid)
       console.log(`✅ Project created successfully with ID: ${projectId}`)
 
       // Start download in background with selected downloader and cleaned URL
@@ -137,15 +142,21 @@ export default class EnhancedProjectsController {
 
       response.header('Access-Control-Allow-Origin', '*')
 
-      // Check database status using Lucid ORM
-      const project = await VideoProject.find(projectId)
+      // Check database status using Raw SQL via databaseService
+      const projectResult = await databaseService.execute(`
+        SELECT status, video_file_path as videoFilePath, duration, thumbnail_url as thumbnailUrl 
+        FROM video_projects 
+        WHERE id = ?
+      `, [projectId])
 
-      if (!project) {
+      if (projectResult.rows.length === 0) {
         return response.status(404).json({
           success: false,
           message: 'Project not found'
         })
       }
+
+      // const project = projectResult.rows[0] as any
 
       const isDownloaded = await enhancedVideoProcessor.isVideoDownloaded(projectId)
       const progress = await enhancedVideoProcessor.getDownloadProgress(projectId)
@@ -295,28 +306,25 @@ export default class EnhancedProjectsController {
       }
 
       if (result.success) {
-        // Update database with success using Lucid ORM
-        const project = await VideoProject.find(projectId)
-        if (project) {
-          project.status = 'processing' // Still processing (AI analysis)
-          project.videoFilePath = (result as any).filePath || (result as any).videoPath || null
-          await project.save()
+        // Update database with success using raw SQL
+        const videoFilePath = (result as any).filePath || (result as any).videoPath || null
+        await databaseService.execute(`
+          UPDATE video_projects 
+          SET status = 'processing', video_file_path = ?, updated_at = datetime('now')
+          WHERE id = ?
+        `, [videoFilePath, projectId])
 
-          // Trigger AI analysis automatically (Opus Clip style)
-          console.log(`✨ Video downloaded. Triggering auto-clipping for project ${projectId}`)
-          await aiService.generateAutoClips(projectId)
-        }
-
-        console.log(`✅ Download and analysis flow completed for project ${projectId}`)
+        // Trigger AI analysis automatically (Opus Clip style)
+        console.log(`✨ Video downloaded. Triggering auto-clipping for project ${projectId}`)
+        await aiService.generateAutoClips(projectId)
       } else {
         // [DEMO MODE FALLBACK]
-        const project = await VideoProject.find(projectId)
-        if (project) {
-          console.log(`⚠️ Download failed for project ${projectId}, entering DEMO MODE for AI clips...`)
-          project.status = 'processing'
-          await project.save()
-          await aiService.generateAutoClips(projectId)
-        }
+        console.log(`⚠️ Download failed for project ${projectId}, entering DEMO MODE for AI clips...`)
+        await databaseService.execute(`
+          UPDATE video_projects SET status = 'processing', updated_at = datetime('now') WHERE id = ?
+        `, [projectId])
+
+        await aiService.generateAutoClips(projectId)
 
         console.log(`❌ Download failed for project ${projectId} using ${downloader}: ${(result as any).error || 'Unknown error'}`)
       }
@@ -324,12 +332,10 @@ export default class EnhancedProjectsController {
     } catch (error) {
       console.error(`❌ Download error for project ${projectId}:`, error)
 
-      // Update database with failure using Lucid ORM
-      const project = await VideoProject.find(projectId)
-      if (project) {
-        project.status = 'failed'
-        await project.save()
-      }
+      // Update database with failure using raw SQL
+      await databaseService.execute(`
+        UPDATE video_projects SET status = 'failed', updated_at = datetime('now') WHERE id = ?
+      `, [projectId])
     }
   }
 
@@ -437,21 +443,20 @@ export default class EnhancedProjectsController {
       response.header('Access-Control-Allow-Origin', '*')
 
       // Update database status to processing first
-      const project = await VideoProject.find(projectId)
-      if (project) {
-        project.status = 'processing'
-        await project.save()
-      }
+      await databaseService.execute(`
+        UPDATE video_projects SET status = 'processing', updated_at = datetime('now') WHERE id = ?
+      `, [projectId])
 
       const result = await enhancedVideoProcessor.resumeDownload(parseInt(projectId))
 
       if (result.success) {
         // Update database with success
-        if (project) {
-          project.status = 'completed'
-          project.videoFilePath = result.filePath || null
-          await project.save()
-        }
+        const videoFilePath = result.filePath || null
+        await databaseService.execute(`
+          UPDATE video_projects 
+          SET status = 'completed', video_file_path = ?, updated_at = datetime('now')
+          WHERE id = ?
+        `, [videoFilePath, projectId])
 
         return response.json({
           success: true,
@@ -459,11 +464,10 @@ export default class EnhancedProjectsController {
           data: { projectId, status: 'completed' }
         })
       } else {
-        // Update database with failure
-        if (project) {
-          project.status = 'failed'
-          await project.save()
-        }
+        // Update database with failure using raw SQL
+        await databaseService.execute(`
+          UPDATE video_projects SET status = 'failed', updated_at = datetime('now') WHERE id = ?
+        `, [projectId])
 
         return response.status(400).json({
           success: false,
@@ -471,13 +475,11 @@ export default class EnhancedProjectsController {
         })
       }
     } catch (error) {
-      // Update database with failure on exception
+      // Update database with failure using raw SQL
       try {
-        const project = await VideoProject.find(params.projectId)
-        if (project) {
-          project.status = 'failed'
-          await project.save()
-        }
+        await databaseService.execute(`
+          UPDATE video_projects SET status = 'failed', updated_at = datetime('now') WHERE id = ?
+        `, [params.projectId])
       } catch (dbError) {
         console.error('Failed to update database on error:', dbError)
       }
