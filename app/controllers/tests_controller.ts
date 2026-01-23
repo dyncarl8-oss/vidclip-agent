@@ -1,12 +1,12 @@
 import type { HttpContext } from '@adonisjs/core/http'
-import tursoService from '#services/turso_service'
+import databaseService from '#services/database_service'
 
 export default class TestsController {
   async index({ response }: HttpContext) {
     try {
       // Test connection dengan query sederhana
-      const result = await tursoService.execute('SELECT 1 as test')
-      
+      const result = await databaseService.execute('SELECT 1 as test')
+
       return response.json({
         success: true,
         message: 'Turso connection successful',
@@ -23,7 +23,7 @@ export default class TestsController {
 
   async createTable({ response }: HttpContext) {
     try {
-      await tursoService.execute(`
+      await databaseService.execute(`
         CREATE TABLE IF NOT EXISTS users (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           name TEXT NOT NULL,
@@ -31,7 +31,7 @@ export default class TestsController {
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
       `)
-      
+
       return response.json({
         success: true,
         message: 'Table created successfully'

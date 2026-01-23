@@ -14,14 +14,28 @@ class DatabaseService {
   /**
    * Execute raw SQL query
    */
-  async execute(sql: string, params: any[] = []): Promise<{ rows: any[] }> {
+  async execute(sql: string, params: any[] = []): Promise<{
+    rows: any[];
+    rowsAffected?: number;
+    lastInsertRowid?: any;
+  }> {
     if (this.isProduction) {
       // Production: Use Turso
-      return await tursoService.execute(sql, params)
+      const result = await tursoService.execute(sql, params)
+      return {
+        rows: result.rows,
+        rowsAffected: result.rowsAffected,
+        lastInsertRowid: result.lastInsertRowid
+      }
     } else {
       // Development: Use Lucid ORM with SQLite
       const result = await db.rawQuery(sql, params)
-      return { rows: result.rows || result }
+      // SQLite/Better-sqlite3 through Lucid might return result differently
+      return {
+        rows: result.rows || result,
+        rowsAffected: result.rowsAffected || (result as any).changes,
+        lastInsertRowid: result.lastInsertRowid || (result as any).insertId
+      }
     }
   }
 

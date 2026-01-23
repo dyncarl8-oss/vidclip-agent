@@ -10,6 +10,9 @@ export default class EnhancedProjectsController {
   // Step 1: Create project and start video download
   async create({ request, response }: HttpContext) {
     try {
+      console.log(`🚀 [Create Project] Starting creation...`)
+      console.log(`📂 [Database] Active Connection: ${databaseService.getConnectionInfo().type}`)
+
       const { title, youtubeUrl, userId, quality = '720p', downloader = 'auto' } = request.only([
         'title', 'youtubeUrl', 'userId', 'quality', 'downloader'
       ])

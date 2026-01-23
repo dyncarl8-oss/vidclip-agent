@@ -1,5 +1,5 @@
 import type { HttpContext } from '@adonisjs/core/http'
-import tursoService from '#services/turso_service'
+import databaseService from '#services/database_service'
 import videoProcessor from '#services/video_processor'
 
 import ffmpeg from 'fluent-ffmpeg'
@@ -9,7 +9,7 @@ import fs from 'fs'
 export default class ClipsController {
   async index({ response }: HttpContext) {
     try {
-      const result = await tursoService.execute(`
+      const result = await databaseService.execute(`
         SELECT c.*, vp.title as project_title 
         FROM clips c
         LEFT JOIN video_projects vp ON c.video_project_id = vp.id
@@ -31,7 +31,7 @@ export default class ClipsController {
 
   async show({ params, response }: HttpContext) {
     try {
-      const result = await tursoService.execute(`
+      const result = await databaseService.execute(`
         SELECT c.*, vp.title as project_title, vp.video_file_path
         FROM clips c
         LEFT JOIN video_projects vp ON c.video_project_id = vp.id
@@ -240,7 +240,7 @@ export default class ClipsController {
   async process({ params, response }: HttpContext) {
     try {
       // Get clip info
-      const clipResult = await tursoService.execute(`
+      const clipResult = await databaseService.execute(`
         SELECT c.*, vp.video_file_path
         FROM clips c
         LEFT JOIN video_projects vp ON c.video_project_id = vp.id
@@ -264,7 +264,7 @@ export default class ClipsController {
       }
 
       // Update status to processing
-      await tursoService.execute(`
+      await databaseService.execute(`
         UPDATE clips SET status = 'processing', updated_at = datetime('now') WHERE id = ?
       `, [params.id])
 
@@ -299,7 +299,7 @@ export default class ClipsController {
       const outputUrl = videoProcessor.getPublicUrl(clipPath, 'clip')
 
       // Update clip with output URL
-      await tursoService.execute(`
+      await databaseService.execute(`
         UPDATE clips 
         SET output_url = ?, status = 'completed', updated_at = datetime('now')
         WHERE id = ?
@@ -307,7 +307,7 @@ export default class ClipsController {
 
     } catch (error) {
       // Update status to failed
-      await tursoService.execute(`
+      await databaseService.execute(`
         UPDATE clips 
         SET status = 'failed', updated_at = datetime('now')
         WHERE id = ?
@@ -317,7 +317,7 @@ export default class ClipsController {
 
   async stream({ params, response }: HttpContext) {
     try {
-      const result = await tursoService.execute(`
+      const result = await databaseService.execute(`
         SELECT output_url FROM clips WHERE id = ?
       `, [params.id])
 

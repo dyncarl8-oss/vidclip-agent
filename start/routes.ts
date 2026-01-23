@@ -191,12 +191,26 @@ router.get('/health', async () => {
   const hours = Math.floor(uptime / 3600)
   const minutes = Math.floor((uptime % 3600) / 60)
 
+  let dbInfo = { type: 'unknown', healthy: false }
+  try {
+    const databaseService = (await import('#services/database_service')).default
+    const health = await databaseService.healthCheck()
+    dbInfo = {
+      type: databaseService.getConnectionInfo().type,
+      healthy: health.success
+    }
+  } catch (e) {
+    console.error(`❌ Health check database error:`, e)
+  }
+
   return {
     success: true,
     message: 'Pocat.io API is online',
     data: {
       version: '2.1.0',
-      uptime: hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`
+      uptime: hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`,
+      database: dbInfo,
+      environment: process.env.NODE_ENV || 'development'
     }
   }
 })

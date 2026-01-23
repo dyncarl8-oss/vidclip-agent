@@ -1,7 +1,14 @@
 import { defineConfig } from '@adonisjs/lucid'
 import env from '#start/env'
 
-const defaultConnection = env.get('DB_CONNECTION') || (env.get('NODE_ENV') === 'production' ? 'turso' : 'sqlite')
+const isProduction = env.get('NODE_ENV') === 'production'
+const hasTurso = !!env.get('TURSO_DATABASE_URL') && env.get('TURSO_DATABASE_URL') !== 'your-turso-database-url'
+
+// Force Turso in production if credentials exist, otherwise fallback to DB_CONNECTION or sqlite
+const defaultConnection = (isProduction && hasTurso) ? 'turso' : (env.get('DB_CONNECTION') || 'sqlite')
+
+console.log(`📡 Database System: Detected Environment [${env.get('NODE_ENV')}]`)
+console.log(`📡 Database System: Selecting Connection [${defaultConnection}]`)
 
 const dbConfig = defineConfig({
   connection: defaultConnection,

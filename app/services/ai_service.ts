@@ -21,22 +21,28 @@ export class AiService {
             // Generate 3-5 viral clips
             const clipsToCreate = [
                 {
-                    title: "🔑 The Secret to Success",
+                    title: "🔥 TOP SECRET: Success Formula",
                     startTime: duration * 0.1,
                     endTime: duration * 0.1 + 45,
-                    score: 95
+                    score: 98
                 },
                 {
-                    title: "💡 Why Most People Fail",
+                    title: "💡 MIND BLOWING: Why 99% Fail",
                     startTime: duration * 0.3,
                     endTime: duration * 0.3 + 60,
-                    score: 88
+                    score: 94
                 },
                 {
-                    title: "🚀 Taking The First Step",
+                    title: "🚀 UNSTOPPABLE: The First Step",
                     startTime: duration * 0.6,
                     endTime: duration * 0.6 + 30,
-                    score: 92
+                    score: 91
+                },
+                {
+                    title: "🎯 MASTERCLASS: Level Up Now",
+                    startTime: duration * 0.8,
+                    endTime: duration * 0.8 + 50,
+                    score: 89
                 }
             ]
 
