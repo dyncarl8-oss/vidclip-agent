@@ -58,19 +58,28 @@ export default class EnhancedProjectsController {
       }
 
       // Ensure user exists (hack for MVP/Demo)
+      console.log(`👤 Checking for user ${userId}...`)
       let user = await User.find(userId)
-      if (!user && userId === 1) {
-        user = await User.create({
-          id: 1,
-          fullName: 'Default User',
-          email: 'user@example.com',
-          password: 'password123'
-        })
+      if (!user) {
+        if (userId === 1 || userId === '1') {
+          console.log(`👤 User 1 not found, creating default user...`)
+          user = new User()
+          user.fullName = 'Default User'
+          user.email = 'user@example.com'
+          user.password = 'password123'
+          await user.save()
+          console.log(`✅ Default user created with ID: ${user.id}`)
+        } else {
+          console.warn(`⚠️ User ${userId} not found and is not default ID 1.`)
+        }
+      } else {
+        console.log(`✅ User ${userId} found.`)
       }
 
+      console.log(`📁 Creating project in database...`)
       // Create project in database using Lucid ORM
       const project = await VideoProject.create({
-        userId: userId,
+        userId: user ? user.id : userId, // Use actual user ID if found/created
         title: title,
         youtubeUrl: cleanUrl, // Use clean URL here
         videoMetadata: videoInfo.data,
@@ -80,8 +89,10 @@ export default class EnhancedProjectsController {
       })
 
       const projectId = project.id
+      console.log(`✅ Project created successfully with ID: ${projectId}`)
 
       // Start download in background with selected downloader and cleaned URL
+      console.log(`⏳ Starting background download for project ${projectId}...`)
       this.downloadVideoAsync(projectId, cleanUrl, quality, downloader)
 
       return response.status(201).json({
@@ -98,10 +109,12 @@ export default class EnhancedProjectsController {
       })
 
     } catch (error) {
+      console.error(`❌ CRITICAL: Failed to create project:`, error)
       return response.status(500).json({
         success: false,
         message: 'Failed to create project',
-        error: error.message
+        error: error.message,
+        stack: error.stack
       })
     }
   }
