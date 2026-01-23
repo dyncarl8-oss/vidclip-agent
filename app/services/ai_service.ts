@@ -16,7 +16,7 @@ export class AiService {
             // Simulate AI analysis time
             await new Promise(resolve => setTimeout(resolve, 5000))
 
-            const duration = project.duration || 600 // default 10 mins
+            const duration = (project.duration && project.duration > 0) ? project.duration : 300 // default for demo if 0
 
             // Generate 3-5 viral clips
             const clipsToCreate = [

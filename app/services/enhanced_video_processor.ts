@@ -410,84 +410,85 @@ class EnhancedVideoProcessor {
 
   // Get video info without downloading
   async getVideoInfo(youtubeUrl: string) {
-    // Clean URL (handle doubled URLs like https://...https://...)
+    // Clean URL
     let cleanUrl = youtubeUrl.trim()
     if (cleanUrl.includes('http') && cleanUrl.lastIndexOf('http') > 0) {
       cleanUrl = cleanUrl.substring(0, cleanUrl.lastIndexOf('http')).trim()
     }
 
-    // Try yt-dlp first (more reliable for info)
-    const ytDlp = new YtDlpDownloader()
-    try {
-      console.log(`📊 Fetching video info via yt-dlp: ${cleanUrl}`)
-      const info = await ytDlp.getVideoInfo(cleanUrl)
-
-      return {
-        success: true,
-        data: {
-          title: info.title,
-          duration: info.duration,
-          thumbnail: info.thumbnail,
-          author: info.uploader,
-          viewCount: info.view_count?.toString(),
-          availableQualities: [] // Simplified for now
-        }
-      }
-    } catch (ytDlpError: any) {
-      console.warn(`⚠️ yt-dlp info failed: ${ytDlpError.message}. Falling back to ytdl-core...`)
-
+    // Helper for oEmbed fallback (the fastest method)
+    const runOEmbed = async () => {
       try {
-        const info = await ytdl.getInfo(cleanUrl)
-        const formats = info.formats
-          .filter(f => f.hasAudio && f.hasVideo)
-          .map(f => ({
-            quality: f.qualityLabel || f.quality || 'unknown',
-            format: f.container,
-            filesize: f.contentLength ? parseInt(f.contentLength) : 0
-          }))
-
+        const oEmbedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(cleanUrl)}&format=json`
+        const response = await fetch(oEmbedUrl)
+        if (!response.ok) throw new Error(`oEmbed status: ${response.status}`)
+        const info = await response.json() as any
+        console.log(`✅ [FAST] Successfully retrieved metadata via oEmbed: ${cleanUrl}`)
         return {
           success: true,
           data: {
-            title: info.videoDetails.title,
-            duration: parseInt(info.videoDetails.lengthSeconds),
-            thumbnail: info.videoDetails.thumbnails[0]?.url,
-            author: info.videoDetails.author.name,
-            viewCount: info.videoDetails.viewCount,
-            availableQualities: formats
+            title: info.title,
+            duration: 0,
+            thumbnail: info.thumbnail_url,
+            author: info.author_name,
+            viewCount: '0',
+            availableQualities: []
           }
         }
-      } catch (ytdlError: any) {
-        console.warn(`⚠️ ytdl-core info failed: ${ytdlError.message}. Trying oEmbed fallback...`)
+      } catch (e: any) {
+        return { success: false, error: `YouTube is blocking metadata requests. Error: ${e.message}` }
+      }
+    }
 
-        // Final fallback: oEmbed (very hard to block, but only basic metadata)
+    // Attempt rapid yt-dlp first
+    try {
+      console.log(`📊 [Metadata] Attempting yt-dlp/ytdl-core for ${cleanUrl}...`)
+
+      // Use a race to ensure we don't hang more than 4 seconds
+      const deepInfoPromise = (async () => {
         try {
-          const oEmbedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(cleanUrl)}&format=json`
-          const response = await fetch(oEmbedUrl)
-          if (!response.ok) throw new Error(`oEmbed status: ${response.status}`)
-
-          const info = await response.json() as any
-          console.log(`✅ Successfully retrieved basic metadata via oEmbed fallback for: ${cleanUrl}`)
-
+          const ytDlp = new YtDlpDownloader()
+          const info = await ytDlp.getVideoInfo(cleanUrl)
           return {
             success: true,
             data: {
               title: info.title,
-              duration: 0, // oEmbed doesn't provide duration
-              thumbnail: info.thumbnail_url,
-              author: info.author_name,
-              viewCount: '0',
+              duration: info.duration,
+              thumbnail: info.thumbnail,
+              author: info.uploader,
+              viewCount: info.view_count?.toString(),
               availableQualities: []
             }
           }
-        } catch (oEmbedError: any) {
-          console.error(`❌ All video info methods failed. Last error: ${oEmbedError.message}`)
-          return {
-            success: false,
-            error: `YouTube is blocking requests from this server. Error: ${oEmbedError.message}`
+        } catch {
+          // Fallback to ytdl-core inside the promise
+          try {
+            const info = await ytdl.getInfo(cleanUrl)
+            return {
+              success: true,
+              data: {
+                title: info.videoDetails.title,
+                duration: parseInt(info.videoDetails.lengthSeconds),
+                thumbnail: info.videoDetails.thumbnails[0]?.url,
+                author: info.videoDetails.author.name,
+                viewCount: info.videoDetails.viewCount,
+                availableQualities: []
+              }
+            }
+          } catch {
+            throw new Error('DEEP_INFO_FAILED')
           }
         }
-      }
+      })()
+
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('TIMEOUT')), 4000)
+      )
+
+      return await Promise.race([deepInfoPromise, timeoutPromise]) as any
+    } catch (error) {
+      console.warn(`⚠️ [Metadata] Rapid fetch failed or timed out. Falling back to oEmbed...`)
+      return await runOEmbed()
     }
   }
 
