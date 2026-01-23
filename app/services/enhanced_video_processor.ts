@@ -404,31 +404,53 @@ class EnhancedVideoProcessor {
 
   // Get video info without downloading
   async getVideoInfo(youtubeUrl: string) {
+    // Try yt-dlp first (more reliable for info)
+    const ytDlp = new YtDlpDownloader()
     try {
-      const info = await ytdl.getInfo(youtubeUrl)
-      const formats = info.formats
-        .filter(f => f.hasAudio && f.hasVideo)
-        .map(f => ({
-          quality: f.qualityLabel || f.quality || 'unknown',
-          format: f.container,
-          filesize: f.contentLength ? parseInt(f.contentLength) : 0
-        }))
+      console.log(`📊 Fetching video info via yt-dlp: ${youtubeUrl}`)
+      const info = await ytDlp.getVideoInfo(youtubeUrl)
 
       return {
         success: true,
         data: {
-          title: info.videoDetails.title,
-          duration: parseInt(info.videoDetails.lengthSeconds),
-          thumbnail: info.videoDetails.thumbnails[0]?.url,
-          author: info.videoDetails.author.name,
-          viewCount: info.videoDetails.viewCount,
-          availableQualities: formats
+          title: info.title,
+          duration: info.duration,
+          thumbnail: info.thumbnail,
+          author: info.uploader,
+          viewCount: info.view_count?.toString(),
+          availableQualities: [] // Simplified for now
         }
       }
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error.message
+    } catch (ytDlpError: any) {
+      console.warn(`⚠️ yt-dlp info failed: ${ytDlpError.message}. Falling back to ytdl-core...`)
+
+      try {
+        const info = await ytdl.getInfo(youtubeUrl)
+        const formats = info.formats
+          .filter(f => f.hasAudio && f.hasVideo)
+          .map(f => ({
+            quality: f.qualityLabel || f.quality || 'unknown',
+            format: f.container,
+            filesize: f.contentLength ? parseInt(f.contentLength) : 0
+          }))
+
+        return {
+          success: true,
+          data: {
+            title: info.videoDetails.title,
+            duration: parseInt(info.videoDetails.lengthSeconds),
+            thumbnail: info.videoDetails.thumbnails[0]?.url,
+            author: info.videoDetails.author.name,
+            viewCount: info.videoDetails.viewCount,
+            availableQualities: formats
+          }
+        }
+      } catch (error: any) {
+        console.error(`❌ All video info methods failed: ${error.message}`)
+        return {
+          success: false,
+          error: error.message
+        }
       }
     }
   }
