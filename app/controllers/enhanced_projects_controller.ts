@@ -3,6 +3,7 @@ import VideoProject from '#models/video_project'
 import enhancedVideoProcessor from '#services/enhanced_video_processor'
 import videoReferenceService from '#services/video_reference_service'
 import databaseService from '#services/database_service'
+import aiService from '#services/ai_service'
 
 export default class EnhancedProjectsController {
   // Step 1: Create project and start video download
@@ -261,12 +262,16 @@ export default class EnhancedProjectsController {
         // Update database with success using Lucid ORM
         const project = await VideoProject.find(projectId)
         if (project) {
-          project.status = 'completed'
+          project.status = 'processing' // Still processing (AI analysis)
           project.videoFilePath = (result as any).filePath || (result as any).videoPath || null
           await project.save()
+
+          // Trigger AI analysis automatically (Opus Clip style)
+          console.log(`✨ Video downloaded. Triggering auto-clipping for project ${projectId}`)
+          await aiService.generateAutoClips(projectId)
         }
 
-        console.log(`✅ Download completed for project ${projectId} using ${downloader}`)
+        console.log(`✅ Download and analysis flow completed for project ${projectId}`)
       } else {
         // Update database with failure using Lucid ORM
         const project = await VideoProject.find(projectId)
@@ -512,6 +517,39 @@ export default class EnhancedProjectsController {
       return response.status(500).json({
         success: false,
         message: 'Failed to get storage statistics',
+        error: error.message
+      })
+    }
+  }
+  // Get all clips for a project
+  async getClips({ params, response }: HttpContext) {
+    try {
+      const { projectId } = params
+      response.header('Access-Control-Allow-Origin', '*')
+
+      const clips = await databaseService.execute(`
+        SELECT 
+          id,
+          title,
+          start_time as startTime,
+          end_time as endTime,
+          output_url as outputUrl,
+          status,
+          score,
+          created_at as createdAt
+        FROM clips 
+        WHERE video_project_id = ?
+        ORDER BY score DESC
+      `, [projectId])
+
+      return response.json({
+        success: true,
+        data: clips.rows
+      })
+    } catch (error) {
+      return response.status(500).json({
+        success: false,
+        message: 'Failed to retrieve clips',
         error: error.message
       })
     }

@@ -125,3 +125,28 @@ export function useProject(projectId: number | null) {
         isLoading: !projects,
     };
 }
+
+/**
+ * Fetch clips for a specific project
+ */
+export function useProjectClips(projectId: number | null) {
+    return useQuery({
+        queryKey: ['projectClips', projectId],
+        queryFn: async () => {
+            if (!projectId) return [];
+            const { getProjectClips } = await import('@/lib/api');
+            const response = await getProjectClips(projectId);
+            if (!response.success) {
+                throw new Error(response.error || 'Failed to fetch clips');
+            }
+            return response.data || [];
+        },
+        enabled: projectId !== null,
+        refetchInterval: (query) => {
+            // Poll for new clips if project is still processing
+            const clips = query.state.data;
+            if (!clips || clips.length === 0) return 5000;
+            return false;
+        },
+    });
+}

@@ -220,6 +220,7 @@ const EnhancedProjectsController = () => import('#controllers/enhanced_projects_
 router.get('/v2/projects', [EnhancedProjectsController, 'list'])  // List all projects
 router.post('/v2/projects', [EnhancedProjectsController, 'create'])  // Step 1: Create + Download
 router.get('/v2/projects/:projectId/download-status', [EnhancedProjectsController, 'downloadStatus'])  // Step 2: Check status
+router.get('/v2/projects/:projectId/clips', [EnhancedProjectsController, 'getClips'])  // Get project clips
 router.post('/v2/projects/:projectId/resume', [EnhancedProjectsController, 'resumeDownload'])  // Resume failed download
 router.get('/v2/projects/:projectId/stream', [EnhancedProjectsController, 'streamForEditing'])  // Step 3: Stream for editing
 router.post('/v2/projects/:projectId/batch-clips', [EnhancedProjectsController, 'batchProcessClips'])  // Step 4: Batch process

@@ -110,6 +110,15 @@ export async function resumeDownload(
 }
 
 /**
+ * Get all clips for a specific project
+ */
+export async function getProjectClips(
+    projectId: number
+): Promise<ApiResponse<any[]>> {
+    return fetchApi<any[]>(`/v2/projects/${projectId}/clips`);
+}
+
+/**
  * Get video stream URL for a project
  */
 export function getVideoStreamUrl(projectId: number): string {

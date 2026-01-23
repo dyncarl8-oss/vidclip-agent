@@ -13,7 +13,7 @@ import {
 import { useState, useEffect } from "react";
 import { Link, useParams } from "wouter";
 import { useToast } from "@/hooks/use-toast";
-import { useProject, useDownloadStatus, useResumeDownload } from "@/hooks/use-projects";
+import { useProject, useDownloadStatus, useResumeDownload, useProjectClips } from "@/hooks/use-projects";
 import { useRenderClip, useClipStatus } from "@/hooks/use-clips";
 import { VideoPlayer } from "@/components/video-player";
 
@@ -25,6 +25,7 @@ interface ClipItem {
   aspectRatio: '9:16' | '16:9' | '1:1';
   status: 'pending' | 'processing' | 'completed';
   downloadUrl?: string;
+  score?: number;
 }
 
 export default function Editor() {
@@ -34,14 +35,30 @@ export default function Editor() {
 
   const { data: project, isLoading: projectLoading } = useProject(projectId);
   const { data: downloadStatus } = useDownloadStatus(projectId);
+  const { data: autoClips } = useProjectClips(projectId);
   const resumeDownload = useResumeDownload();
   const renderClip = useRenderClip();
 
-  const [clips, setClips] = useState<ClipItem[]>([]);
+  const [localClips, setLocalClips] = useState<ClipItem[]>([]);
   const [selectedClip, setSelectedClip] = useState<ClipItem | null>(null);
   const [clipTitle, setClipTitle] = useState("My Clip");
   const [aspectRatio, setAspectRatio] = useState<'9:16' | '16:9' | '1:1'>('9:16');
   const [currentClipId, setCurrentClipId] = useState<string | null>(null);
+
+  // Combine local and auto clips
+  const clips = [
+    ...localClips,
+    ...(autoClips || []).map(c => ({
+      id: c.id.toString(),
+      title: c.title,
+      startTime: c.startTime,
+      endTime: c.endTime,
+      aspectRatio: '9:16' as const,
+      status: c.status as any,
+      score: c.score,
+      downloadUrl: c.outputUrl
+    }))
+  ].sort((a, b) => (b.score || 0) - (a.score || 0));
 
   // Clip rendering state
   const [pendingClipStart, setPendingClipStart] = useState<number | null>(null);
@@ -53,7 +70,7 @@ export default function Editor() {
   // Update clip when status changes
   useEffect(() => {
     if (clipStatus?.status === 'completed' && currentClipId) {
-      setClips(prev => prev.map(c =>
+      setLocalClips(prev => prev.map(c =>
         c.id === currentClipId
           ? { ...c, status: 'completed', downloadUrl: clipStatus.downloadUrl }
           : c
@@ -91,7 +108,7 @@ export default function Editor() {
       status: 'processing',
     };
 
-    setClips(prev => [newClip, ...prev]);
+    setLocalClips(prev => [newClip, ...prev]);
     setSelectedClip(newClip);
 
     try {
@@ -103,7 +120,7 @@ export default function Editor() {
       });
 
       // Update clip with real ID from server
-      setClips(prev => prev.map(c =>
+      setLocalClips(prev => prev.map(c =>
         c.id === clipId
           ? { ...c, id: result.clipId }
           : c
@@ -130,7 +147,7 @@ export default function Editor() {
   };
 
   const handleDeleteClip = (clipId: string) => {
-    setClips(prev => prev.filter(c => c.id !== clipId));
+    setLocalClips(prev => prev.filter(c => c.id !== clipId));
     if (selectedClip?.id === clipId) {
       setSelectedClip(null);
     }
@@ -346,15 +363,22 @@ export default function Editor() {
                       <div
                         key={clip.id}
                         className={`p-3 rounded-lg border transition-all cursor-pointer ${selectedClip?.id === clip.id
-                            ? 'bg-primary/10 border-primary'
-                            : 'bg-secondary/20 border-transparent hover:bg-secondary/40'
+                          ? 'bg-primary/10 border-primary'
+                          : 'bg-secondary/20 border-transparent hover:bg-secondary/40'
                           }`}
                         onClick={() => setSelectedClip(clip)}
                       >
                         <div className="flex justify-between items-start mb-1">
-                          <h4 className={`font-bold text-sm ${selectedClip?.id === clip.id ? 'text-primary' : 'text-white'}`}>
-                            {clip.title}
-                          </h4>
+                          <div className="flex-1">
+                            <h4 className={`font-bold text-sm ${selectedClip?.id === clip.id ? 'text-primary' : 'text-white'}`}>
+                              {clip.title}
+                            </h4>
+                            {clip.score && (
+                              <Badge variant="outline" className="mt-1 text-[10px] py-0 h-4 bg-primary/20 text-primary border-primary/30">
+                                Viral Score: {clip.score}
+                              </Badge>
+                            )}
+                          </div>
                           <div className="flex items-center gap-2">
                             {clip.status === 'processing' && (
                               <Loader2 className="w-4 h-4 animate-spin text-yellow-400" />
