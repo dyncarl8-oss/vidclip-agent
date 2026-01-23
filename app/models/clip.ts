@@ -29,7 +29,7 @@ export default class Clip extends BaseModel {
   declare subtitleUrl: string | null
 
   @column()
-  declare engagementScore: number | null
+  declare score: number | null
 
   @column()
   declare aiAnalysis: object | null

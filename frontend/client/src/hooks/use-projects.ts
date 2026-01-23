@@ -7,6 +7,7 @@ import {
     getDownloadStatus,
     getVideoInfo,
     resumeDownload,
+    getProjectClips,
 } from '@/lib/api';
 import type { CreateProjectRequest, Project } from '@/lib/types';
 
@@ -134,7 +135,6 @@ export function useProjectClips(projectId: number | null) {
         queryKey: ['projectClips', projectId],
         queryFn: async () => {
             if (!projectId) return [];
-            const { getProjectClips } = await import('@/lib/api');
             const response = await getProjectClips(projectId);
             if (!response.success) {
                 throw new Error(response.error || 'Failed to fetch clips');

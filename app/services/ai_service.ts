@@ -1,6 +1,5 @@
 import VideoProject from '#models/video_project'
 import Clip from '#models/clip'
-import { DateTime } from 'luxon'
 
 export class AiService {
     /**

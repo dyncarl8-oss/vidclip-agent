@@ -13,10 +13,10 @@ export default class extends BaseSchema {
       table.text('transcript_segment').nullable()
       table.string('output_url').nullable()
       table.string('subtitle_url').nullable()
-      table.decimal('engagement_score', 3, 2).nullable() // AI-calculated score 0-1
+      table.integer('score').nullable() // Viral score 0-100
       table.json('ai_analysis').nullable() // sentiment, keywords, etc
       table.enum('status', ['pending', 'processing', 'completed', 'failed']).defaultTo('pending')
-      
+
       table.timestamp('created_at')
       table.timestamp('updated_at')
     })
