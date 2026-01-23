@@ -1,13 +1,15 @@
 import { defineConfig } from '@adonisjs/lucid'
 import env from '#start/env'
 
+const defaultConnection = env.get('DB_CONNECTION') || (env.get('NODE_ENV') === 'production' ? 'turso' : 'sqlite')
+
 const dbConfig = defineConfig({
-  connection: env.get('DB_CONNECTION', 'sqlite'),
+  connection: defaultConnection,
   connections: {
     sqlite: {
       client: 'sqlite3',
       connection: {
-        filename: env.get('DB_DATABASE', './tmp/db.sqlite'),
+        filename: env.get('DB_DATABASE') || './db.sqlite',
       },
       useNullAsDefault: true,
       migrations: {
