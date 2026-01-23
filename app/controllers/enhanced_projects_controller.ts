@@ -75,7 +75,7 @@ export default class EnhancedProjectsController {
         if (userId === 1 || userId === '1') {
           console.log(`👤 User 1 not found, creating default user...`)
           const newUser = await databaseService.execute(
-            'INSERT INTO users (full_name, email, password, created_at, updated_at) VALUES (?, ?, ?, datetime("now"), datetime("now"))',
+            'INSERT INTO users (name, email, password, created_at, updated_at) VALUES (?, ?, ?, datetime("now"), datetime("now"))',
             ['Default User', 'user@example.com', 'password123']
           )
           finalUserId = Number(newUser.lastInsertRowid) || 1
