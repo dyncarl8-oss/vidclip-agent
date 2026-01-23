@@ -9,6 +9,8 @@ const defaultConnection = (isProduction && hasTurso) ? 'turso' : (env.get('DB_CO
 
 console.log(`📡 Database System: Detected Environment [${env.get('NODE_ENV')}]`)
 console.log(`📡 Database System: Selecting Connection [${defaultConnection}]`)
+console.log(`📡 Turso URL exists: ${!!env.get('TURSO_DATABASE_URL')} (Starts with: ${env.get('TURSO_DATABASE_URL')?.substring(0, 10)}...)`)
+console.log(`📡 Turso Token exists: ${!!env.get('TURSO_AUTH_TOKEN')} (Length: ${env.get('TURSO_AUTH_TOKEN')?.length || 0})`)
 
 const dbConfig = defineConfig({
   connection: defaultConnection,
