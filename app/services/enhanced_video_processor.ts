@@ -59,13 +59,19 @@ class EnhancedVideoProcessor {
     message?: string,
     videoPath?: string
   }> {
+    // Clean URL
+    let cleanUrl = youtubeUrl.trim()
+    if (cleanUrl.includes('http') && cleanUrl.lastIndexOf('http') > 0) {
+      cleanUrl = cleanUrl.substring(0, cleanUrl.lastIndexOf('http')).trim()
+    }
+
     try {
-      console.log(`📥 Starting download for project ${projectId}`)
+      console.log(`📥 Starting download for project ${projectId} from ${cleanUrl}`)
       this.initializeProgress(projectId)
 
       // Check if video already exists in downloads
       this.updateProgress(projectId, 10, 'checking existing files')
-      const existingVideo = await videoReferenceService.findExistingVideo(youtubeUrl, quality, true)
+      const existingVideo = await videoReferenceService.findExistingVideo(cleanUrl, quality, true)
       if (existingVideo) {
         if (existingVideo.type === 'master') {
           console.log(`🎯 Video completed! Creating reference to: ${existingVideo.path}`)
@@ -75,7 +81,7 @@ class EnhancedVideoProcessor {
           // Create JSON reference instead of copying file
           await videoReferenceService.createReference(
             projectId,
-            youtubeUrl,
+            cleanUrl,
             quality,
             true,
             existingVideo.path,
@@ -107,7 +113,7 @@ class EnhancedVideoProcessor {
 
       // Try yt-dlp first (most reliable)
       try {
-        const result = await this.tryYtDlpDownload(youtubeUrl, projectId, quality)
+        const result = await this.tryYtDlpDownload(cleanUrl, projectId, quality)
 
         if (result.success && result.filePath) {
           console.log(`✅ Downloaded fresh video: ${result.filePath}`)
@@ -126,7 +132,7 @@ class EnhancedVideoProcessor {
 
       // Fallback to ytdl-core
       try {
-        const result = await this.tryYtdlCoreDownload(youtubeUrl, projectId, quality)
+        const result = await this.tryYtdlCoreDownload(cleanUrl, projectId, quality)
 
         if (result.success && result.filePath) {
           console.log(`✅ Downloaded via ytdl-core: ${result.filePath}`)
@@ -144,7 +150,7 @@ class EnhancedVideoProcessor {
       }
 
       // Final fallback to Puppeteer
-      return await this.tryPuppeteerDownload(youtubeUrl, projectId, quality)
+      return await this.tryPuppeteerDownload(cleanUrl, projectId, quality)
 
     } catch (error: any) {
       console.error(`❌ Download failed for project ${projectId}:`, error.message)
@@ -404,11 +410,17 @@ class EnhancedVideoProcessor {
 
   // Get video info without downloading
   async getVideoInfo(youtubeUrl: string) {
+    // Clean URL (handle doubled URLs like https://...https://...)
+    let cleanUrl = youtubeUrl.trim()
+    if (cleanUrl.includes('http') && cleanUrl.lastIndexOf('http') > 0) {
+      cleanUrl = cleanUrl.substring(0, cleanUrl.lastIndexOf('http')).trim()
+    }
+
     // Try yt-dlp first (more reliable for info)
     const ytDlp = new YtDlpDownloader()
     try {
-      console.log(`📊 Fetching video info via yt-dlp: ${youtubeUrl}`)
-      const info = await ytDlp.getVideoInfo(youtubeUrl)
+      console.log(`📊 Fetching video info via yt-dlp: ${cleanUrl}`)
+      const info = await ytDlp.getVideoInfo(cleanUrl)
 
       return {
         success: true,
@@ -425,7 +437,7 @@ class EnhancedVideoProcessor {
       console.warn(`⚠️ yt-dlp info failed: ${ytDlpError.message}. Falling back to ytdl-core...`)
 
       try {
-        const info = await ytdl.getInfo(youtubeUrl)
+        const info = await ytdl.getInfo(cleanUrl)
         const formats = info.formats
           .filter(f => f.hasAudio && f.hasVideo)
           .map(f => ({
@@ -445,11 +457,34 @@ class EnhancedVideoProcessor {
             availableQualities: formats
           }
         }
-      } catch (error: any) {
-        console.error(`❌ All video info methods failed: ${error.message}`)
-        return {
-          success: false,
-          error: error.message
+      } catch (ytdlError: any) {
+        console.warn(`⚠️ ytdl-core info failed: ${ytdlError.message}. Trying oEmbed fallback...`)
+
+        // Final fallback: oEmbed (very hard to block, but only basic metadata)
+        try {
+          const oEmbedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(cleanUrl)}&format=json`
+          const response = await fetch(oEmbedUrl)
+          if (!response.ok) throw new Error(`oEmbed status: ${response.status}`)
+
+          const info = await response.json() as any
+
+          return {
+            success: true,
+            data: {
+              title: info.title,
+              duration: 0, // oEmbed doesn't provide duration
+              thumbnail: info.thumbnail_url,
+              author: info.author_name,
+              viewCount: '0',
+              availableQualities: []
+            }
+          }
+        } catch (oEmbedError: any) {
+          console.error(`❌ All video info methods failed. Last error: ${oEmbedError.message}`)
+          return {
+            success: false,
+            error: `YouTube is blocking requests from this server. Error: ${oEmbedError.message}`
+          }
         }
       }
     }

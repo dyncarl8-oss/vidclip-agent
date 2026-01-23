@@ -12,8 +12,17 @@ export class YtDlpDownloader {
 
   constructor() {
     this.downloadDir = path.join(process.cwd(), 'storage', 'downloads')
-    // Use env variable or default to 'yt-dlp'
-    this.ytDlpPath = env.get('YT_DLP_PATH') || 'yt-dlp'
+    // Base yt-dlp command with stealth and compatibility flags
+    const baseArgs = [
+      '--no-check-certificates',
+      '--no-cache-dir',
+      '--user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"',
+      '--extractor-args "youtube:player-client=web,mweb"',
+      '--no-warnings'
+    ].join(' ')
+
+    const binary = env.get('YT_DLP_PATH') || 'yt-dlp'
+    this.ytDlpPath = `${binary} ${baseArgs}`
   }
 
   async downloadVideo(url: string, filename?: string, quality: string = '720p'): Promise<string> {
