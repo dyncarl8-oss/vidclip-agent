@@ -13,6 +13,14 @@ export default class EnhancedProjectsController {
       console.log(`🚀 [Create Project] Starting creation...`)
       console.log(`📂 [Database] Active Connection: ${databaseService.getConnectionInfo().type}`)
 
+      // NEW: Health Check Diagnostic
+      const health = await databaseService.healthCheck()
+      if (!health.success) {
+        console.error(`❌ [Database] Connection check failed: ${health.message}`)
+      } else {
+        console.log(`✅ [Database] Connection check successful`)
+      }
+
       const { title, youtubeUrl, userId, quality = '720p', downloader = 'auto' } = request.only([
         'title', 'youtubeUrl', 'userId', 'quality', 'downloader'
       ])

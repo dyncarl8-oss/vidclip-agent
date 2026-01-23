@@ -8,9 +8,12 @@ const hasTurso = !!env.get('TURSO_DATABASE_URL') && env.get('TURSO_DATABASE_URL'
 const defaultConnection = (isProduction && hasTurso) ? 'turso' : (env.get('DB_CONNECTION') || 'sqlite')
 
 console.log(`📡 Database System: Detected Environment [${env.get('NODE_ENV')}]`)
-console.log(`📡 Database System: Selecting Connection [${defaultConnection}]`)
-console.log(`📡 Turso URL exists: ${!!env.get('TURSO_DATABASE_URL')} (Starts with: ${env.get('TURSO_DATABASE_URL')?.substring(0, 10)}...)`)
-console.log(`📡 Turso Token exists: ${!!env.get('TURSO_AUTH_TOKEN')} (Length: ${env.get('TURSO_AUTH_TOKEN')?.length || 0})`)
+console.log(`📡 Turso URL exists: ${!!env.get('TURSO_DATABASE_URL')} (Starts with: ${env.get('TURSO_DATABASE_URL')?.trim().substring(0, 15)}...)`)
+const token = env.get('TURSO_AUTH_TOKEN')?.trim() || ''
+console.log(`📡 Turso Token exists: ${!!token} (Length: ${token.length})`)
+if (token) {
+  console.log(`📡 Turso Token Hint: ${token.substring(0, 5)}...${token.substring(token.length - 5)}`)
+}
 
 const dbConfig = defineConfig({
   connection: defaultConnection,
@@ -29,8 +32,10 @@ const dbConfig = defineConfig({
     turso: {
       client: 'libsql',
       connection: {
-        filename: env.get('TURSO_DATABASE_URL'),
-        authToken: env.get('TURSO_AUTH_TOKEN'),
+        filename: env.get('TURSO_DATABASE_URL')?.trim(),
+        url: env.get('TURSO_DATABASE_URL')?.trim(),
+        authToken: env.get('TURSO_AUTH_TOKEN')?.trim(),
+        token: env.get('TURSO_AUTH_TOKEN')?.trim(),
       } as any,
       useNullAsDefault: true,
       migrations: {
