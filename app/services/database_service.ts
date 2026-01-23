@@ -1,5 +1,6 @@
 import env from '#start/env'
 import db from '@adonisjs/lucid/services/db'
+import tursoService from '#services/turso_service'
 
 /**
  * Database Service - Abstraction layer for dev/prod environments
@@ -9,22 +10,14 @@ import db from '@adonisjs/lucid/services/db'
  */
 class DatabaseService {
   private isProduction = env.get('NODE_ENV') === 'production'
-  private tursoService: any = null
-
-  constructor() {
-    // Only load tursoService in production
-    if (this.isProduction) {
-      this.tursoService = require('./turso_service.js').default
-    }
-  }
 
   /**
    * Execute raw SQL query
    */
   async execute(sql: string, params: any[] = []): Promise<{ rows: any[] }> {
-    if (this.isProduction && this.tursoService) {
+    if (this.isProduction) {
       // Production: Use Turso
-      return await this.tursoService.execute(sql, params)
+      return await tursoService.execute(sql, params)
     } else {
       // Development: Use Lucid ORM with SQLite
       const result = await db.rawQuery(sql, params)
@@ -36,9 +29,9 @@ class DatabaseService {
    * Execute batch statements
    */
   async batch(statements: Array<{ sql: string; args?: any[] }>): Promise<any> {
-    if (this.isProduction && this.tursoService) {
+    if (this.isProduction) {
       // Production: Use Turso batch
-      return await this.tursoService.batch(statements)
+      return await tursoService.batch(statements)
     } else {
       // Development: Execute sequentially with Lucid
       const results = []
