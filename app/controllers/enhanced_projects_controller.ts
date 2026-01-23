@@ -31,8 +31,14 @@ export default class EnhancedProjectsController {
       // Set CORS headers
       response.header('Access-Control-Allow-Origin', '*')
 
-      // Get video info first
-      const videoInfo = await enhancedVideoProcessor.getVideoInfo(youtubeUrl)
+      // Clean URL
+      let cleanUrl = youtubeUrl.trim()
+      if (cleanUrl.includes('http') && cleanUrl.lastIndexOf('http') > 0) {
+        cleanUrl = cleanUrl.substring(0, cleanUrl.lastIndexOf('http')).trim()
+      }
+
+      // Get video info first using cleaned URL
+      const videoInfo = await enhancedVideoProcessor.getVideoInfo(cleanUrl)
 
       if (!videoInfo.success) {
         return response.status(400).json({
@@ -53,7 +59,7 @@ export default class EnhancedProjectsController {
       const project = await VideoProject.create({
         userId: userId,
         title: title,
-        youtubeUrl: youtubeUrl,
+        youtubeUrl: cleanUrl, // Use clean URL here
         videoMetadata: videoInfo.data,
         duration: videoInfo.data.duration,
         thumbnailUrl: videoInfo.data.thumbnail,
@@ -62,8 +68,8 @@ export default class EnhancedProjectsController {
 
       const projectId = project.id
 
-      // Start download in background with selected downloader
-      this.downloadVideoAsync(projectId, youtubeUrl, quality, downloader)
+      // Start download in background with selected downloader and cleaned URL
+      this.downloadVideoAsync(projectId, cleanUrl, quality, downloader)
 
       return response.status(201).json({
         success: true,

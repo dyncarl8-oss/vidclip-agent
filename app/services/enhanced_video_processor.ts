@@ -467,6 +467,7 @@ class EnhancedVideoProcessor {
           if (!response.ok) throw new Error(`oEmbed status: ${response.status}`)
 
           const info = await response.json() as any
+          console.log(`✅ Successfully retrieved basic metadata via oEmbed fallback for: ${cleanUrl}`)
 
           return {
             success: true,

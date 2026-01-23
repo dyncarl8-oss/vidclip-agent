@@ -114,9 +114,15 @@ function NewProjectDialog() {
     }
 
     try {
+      // Final URL cleaning before mutation
+      let cleanUrl = url.trim();
+      if (cleanUrl.includes('http') && cleanUrl.lastIndexOf('http') > 0) {
+        cleanUrl = cleanUrl.substring(0, cleanUrl.lastIndexOf('http')).trim();
+      }
+
       const result = await createProject.mutateAsync({
         title: title || videoInfo?.title || "Untitled Project",
-        youtubeUrl: url,
+        youtubeUrl: cleanUrl,
         userId: 1, // TODO: Get from auth
         quality: '720p',
         downloader: 'auto',
@@ -179,7 +185,13 @@ function NewProjectDialog() {
                   placeholder="https://youtube.com/watch?v=..."
                   className="pl-10 bg-secondary/30 border-white/10"
                   value={url}
-                  onChange={(e) => setUrl(e.target.value)}
+                  onChange={(e) => {
+                    let val = e.target.value.trim();
+                    if (val.includes('http') && val.lastIndexOf('http') > 0) {
+                      val = val.substring(0, val.lastIndexOf('http')).trim();
+                    }
+                    setUrl(val);
+                  }}
                 />
               </div>
             </div>
