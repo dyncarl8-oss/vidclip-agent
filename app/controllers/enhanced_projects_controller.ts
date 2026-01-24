@@ -109,7 +109,7 @@ export default class EnhancedProjectsController {
 
       // Start download in background with selected downloader and cleaned URL
       console.log(`⏳ Starting background download for project ${projectId}...`)
-      this.downloadVideoAsync(projectId, cleanUrl, quality, downloader)
+      this.downloadVideoAsync(projectId, cleanUrl, quality, downloader, videoInfo.data)
 
       return response.status(201).json({
         success: true,
@@ -282,7 +282,7 @@ export default class EnhancedProjectsController {
   }
 
   // Background download process
-  private async downloadVideoAsync(projectId: number, youtubeUrl: string, quality: string, downloader: string = 'auto') {
+  private async downloadVideoAsync(projectId: number, youtubeUrl: string, quality: string, downloader: string = 'auto', metadata?: any) {
     try {
       console.log(`📥 Starting download for project ${projectId} using ${downloader}`)
 
@@ -291,17 +291,17 @@ export default class EnhancedProjectsController {
       // Choose download method based on downloader parameter
       switch (downloader) {
         case 'yt-dlp':
-          result = await enhancedVideoProcessor.tryYtDlpDownload(youtubeUrl, projectId, quality)
+          result = await enhancedVideoProcessor.tryYtDlpDownload(youtubeUrl, projectId, quality, metadata)
           break
         case 'ytdl-core':
-          result = await enhancedVideoProcessor.tryYtdlCoreDownload(youtubeUrl, projectId, quality)
+          result = await enhancedVideoProcessor.tryYtdlCoreDownload(youtubeUrl, projectId, quality, metadata)
           break
         case 'puppeteer':
           result = await enhancedVideoProcessor.tryPuppeteerDownload(youtubeUrl, projectId, quality)
           break
         case 'auto':
         default:
-          result = await enhancedVideoProcessor.downloadVideo(youtubeUrl, projectId, quality)
+          result = await enhancedVideoProcessor.downloadVideo(youtubeUrl, projectId, quality, metadata)
           break
       }
 

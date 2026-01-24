@@ -50,7 +50,7 @@ class EnhancedVideoProcessor {
   }
 
   // Step 1: Download full video with quality selection
-  async downloadVideo(youtubeUrl: string, projectId: number, quality: string = '720p'): Promise<{
+  async downloadVideo(youtubeUrl: string, projectId: number, quality: string = '720p', existingMetadata?: any): Promise<{
     success: boolean
     filePath?: string
     duration?: number
@@ -113,7 +113,7 @@ class EnhancedVideoProcessor {
 
       // Try yt-dlp first (most reliable)
       try {
-        const result = await this.tryYtDlpDownload(cleanUrl, projectId, quality)
+        const result = await this.tryYtDlpDownload(cleanUrl, projectId, quality, existingMetadata)
 
         if (result.success && result.filePath) {
           console.log(`✅ Downloaded fresh video: ${result.filePath}`)
@@ -132,7 +132,7 @@ class EnhancedVideoProcessor {
 
       // Fallback to ytdl-core
       try {
-        const result = await this.tryYtdlCoreDownload(cleanUrl, projectId, quality)
+        const result = await this.tryYtdlCoreDownload(cleanUrl, projectId, quality, existingMetadata)
 
         if (result.success && result.filePath) {
           console.log(`✅ Downloaded via ytdl-core: ${result.filePath}`)
@@ -162,15 +162,20 @@ class EnhancedVideoProcessor {
   }
 
   // Primary method using yt-dlp (most reliable)
-  async tryYtDlpDownload(youtubeUrl: string, projectId: number, quality: string) {
+  async tryYtDlpDownload(youtubeUrl: string, projectId: number, quality: string, existingMetadata?: any) {
     const ytDlp = new YtDlpDownloader()
 
     try {
       console.log(`🚀 Trying yt-dlp download...`)
-      this.updateProgress(projectId, 25, 'getting video info')
 
-      // Get video info first
-      const info = await ytDlp.getVideoInfo(youtubeUrl)
+      let info = existingMetadata
+      if (!info) {
+        this.updateProgress(projectId, 25, 'getting video info')
+        // Get video info first
+        info = await ytDlp.getVideoInfo(youtubeUrl)
+      } else {
+        console.log(`✅ Using pre-fetched metadata for project ${projectId}`)
+      }
 
       this.updateProgress(projectId, 40, 'starting video download')
 
@@ -217,11 +222,11 @@ class EnhancedVideoProcessor {
   }
 
   // Fallback method using ytdl-core
-  async tryYtdlCoreDownload(youtubeUrl: string, projectId: number, quality: string) {
+  async tryYtdlCoreDownload(youtubeUrl: string, projectId: number, quality: string, existingMetadata?: any) {
     try {
       console.log(`🎯 Trying ytdl-core download...`)
 
-      const info = await ytdl.getInfo(youtubeUrl)
+      const info = existingMetadata || await ytdl.getInfo(youtubeUrl)
       const videoPath = path.join(this.downloadPath, `project_${projectId}_full.mp4`)
 
       let format
