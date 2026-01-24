@@ -124,7 +124,7 @@ class VideoReferenceService {
         return { type: 'downloading', path: partFilename }
       }
 
-      console.log(`💾 No existing video found for ${videoId}`)
+      // console.log(`💾 No existing video found for ${videoId}`)
       return null
     } catch (error) {
       console.error(`Error checking existing video:`, error)

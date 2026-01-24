@@ -14,64 +14,70 @@ class PuppeteerYouTubeDownloader {
 
     /**
      * Emergency fallback downloader using Puppeteer
-     * This tries to use a secondary service if direct download is blocked
      */
     async downloadVideo(url: string, projectId: number): Promise<{ success: boolean; filePath?: string; error?: string }> {
         console.log(`🕵️ Puppeteer: Attempting emergency download for project ${projectId}`)
 
         let browser
         try {
-            // DYNAMIC PATH DISCOVERY for Render (Version-Agnostic)
+            // AGGRESSIVE PERMISSION-AWARE SCANNER
             let executablePath: string | undefined = undefined
 
-            const findChromeInDir = (dir: string): string | null => {
-                if (!fs.existsSync(dir)) return null
+            const scan = (dir: string, depth = 0): string | null => {
+                if (depth > 4 || !fs.existsSync(dir)) return null
                 try {
-                    const files = fs.readdirSync(dir)
-                    for (const file of files) {
-                        const fullPath = path.join(dir, file)
-                        const stat = fs.statSync(fullPath)
-                        if (stat.isDirectory()) {
-                            const found = findChromeInDir(fullPath)
-                            if (found) return found
-                        } else if (file === 'chrome' && (fullPath.includes('chrome-linux') || dir.endsWith('chrome-linux64'))) {
-                            return fullPath
-                        }
+                    const entries = fs.readdirSync(dir, { withFileTypes: true })
+                    for (const entry of entries) {
+                        const fullPath = path.join(dir, entry.name)
+                        try {
+                            if (entry.isDirectory()) {
+                                const found = scan(fullPath, depth + 1)
+                                if (found) return found
+                            } else if (entry.name === 'chrome' || entry.name === 'google-chrome') {
+                                if (fs.statSync(fullPath).mode & 0o111) return fullPath
+                            }
+                        } catch (e) { }
                     }
-                } catch (e) { /* ignore restricted dirs */ }
+                } catch (e) { }
                 return null
             }
 
-            const possibleRoots = ['/opt/render/.cache/puppeteer', '/usr/bin/google-chrome', '/usr/bin/chromium-browser']
-            for (const root of possibleRoots) {
-                if (root.startsWith('/usr/bin')) {
-                    if (fs.existsSync(root)) { executablePath = root; break; }
-                } else {
-                    const found = findChromeInDir(root)
-                    if (found) { executablePath = found; break; }
-                }
+            // Potential locations on Render
+            const roots = ['/opt/render/.cache/puppeteer', '/usr/bin', '/usr/local/bin']
+            for (const root of roots) {
+                executablePath = scan(root) || undefined
+                if (executablePath) break
             }
 
-            console.log(`🚀 Puppeteer: System check... ${executablePath ? `Found Chrome at ${executablePath}` : 'Chrome not found, using default'}`)
+            console.log(`🚀 Puppeteer: System check... ${executablePath ? `Found binary at ${executablePath}` : 'Using system default path'}`)
 
             browser = await puppeteer.launch({
                 headless: true,
                 executablePath,
-                args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
+                args: [
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                    '--disable-gpu',
+                    '--disable-dev-shm-usage',
+                    '--no-first-run',
+                    '--no-zygote'
+                ]
             })
 
             const page = await browser.newPage()
 
-            // We'll use a public downloader service as a proxy
-            // This is more reliable for Cloud IPs which are blocked by YouTube
-            console.log(`🔗 Puppeteer: Navigating to downloader service...`)
-            await page.goto('https://en.savefrom.net/1-youtube-video-downloader-524/', { waitUntil: 'networkidle2' })
+            // Try SaveFrom as a proxy to bypass YouTube IP blocks
+            console.log(`🔗 Puppeteer: Navigating through proxy downloader...`)
+            await page.goto('https://en.savefrom.net/1-youtube-video-downloader-524/', {
+                waitUntil: 'networkidle2',
+                timeout: 60000
+            })
 
             await page.type('#id_url', url)
             await page.click('#sf_submit')
 
             console.log(`⏳ Puppeteer: Waiting for download links...`)
-            await page.waitForSelector('.download-icon', { timeout: 30000 })
+            await page.waitForSelector('.download-icon', { timeout: 45000 })
 
             const downloadUrl = await page.evaluate(() => {
                 const link = (globalThis as any).document.querySelector('.download-icon')
@@ -84,9 +90,8 @@ class PuppeteerYouTubeDownloader {
 
             console.log(`✅ Puppeteer: Found download URL, downloading file...`)
 
-            // Download the file
             const videoPath = path.join(this.downloadPath, `project_${projectId}_puppeteer.mp4`)
-            const response = await page.goto(downloadUrl)
+            const response = await page.goto(downloadUrl, { timeout: 90000 })
             const buffer = await response?.buffer()
 
             if (buffer) {
