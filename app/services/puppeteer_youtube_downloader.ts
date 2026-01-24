@@ -40,7 +40,7 @@ class PuppeteerYouTubeDownloader {
             await page.waitForSelector('.download-icon', { timeout: 30000 })
 
             const downloadUrl = await page.evaluate(() => {
-                const link = (document as any).querySelector('.download-icon')
+                const link = (globalThis as any).document.querySelector('.download-icon')
                 return link ? link.href : null
             })
 
