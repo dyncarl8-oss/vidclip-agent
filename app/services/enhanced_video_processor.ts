@@ -111,7 +111,29 @@ class EnhancedVideoProcessor {
       console.log(`💾 No existing video found. Downloading fresh copy...`)
       this.updateProgress(projectId, 20, 'starting fresh download')
 
-      // Try yt-dlp first (most reliable)
+      // Try Cobalt API first (bypasses datacenter IP blocking)
+      try {
+        console.log(`🌐 Trying Cobalt API download...`)
+        this.updateProgress(projectId, 25, 'trying Cobalt API')
+        const cobaltDownloader = (await import('#services/cobalt_downloader')).default
+        const cobaltResult = await cobaltDownloader.downloadVideo(cleanUrl, projectId, quality.replace('p', ''))
+
+        if (cobaltResult.success && cobaltResult.filePath) {
+          console.log(`✅ Downloaded via Cobalt API: ${cobaltResult.filePath}`)
+          this.completeProgress(projectId)
+          return {
+            success: true,
+            filePath: cobaltResult.filePath,
+            metadata: { source: 'cobalt_api' }
+          }
+        }
+        console.log(`⚠️ Cobalt API failed: ${cobaltResult.error}`)
+      } catch (cobaltError: any) {
+        console.log(`❌ Cobalt API error: ${cobaltError.message}`)
+        this.updateProgress(projectId, 28, 'Cobalt failed, trying yt-dlp')
+      }
+
+      // Try yt-dlp second (local fallback)
       try {
         const result = await this.tryYtDlpDownload(cleanUrl, projectId, quality, existingMetadata)
 

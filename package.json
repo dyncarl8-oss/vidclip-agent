@@ -9,7 +9,7 @@
   "license": "UNLICENSED",
   "scripts": {
     "start": "node build/bin/server.js",
-    "build": "pnpm run build:frontend && pnpm run build:api",
+    "build": "pnpm run build:frontend && pnpm run build:api && npx puppeteer browsers install chrome",
     "build:api": "node ace build",
     "build:frontend": "pnpm --filter pocat-frontend run build",
     "dev:api": "node ace serve --hmr",
