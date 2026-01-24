@@ -21,9 +21,22 @@ class PuppeteerYouTubeDownloader {
 
         let browser
         try {
-            // Path where 'npx puppeteer browsers install chrome' puts it on Render
-            const renderChromePath = '/opt/render/.cache/puppeteer/chrome/linux-144.0.7559.96/chrome-linux64/chrome'
-            const executablePath = (fs as any).existsSync(renderChromePath) ? renderChromePath : undefined
+            // DYNAMIC PATH DISCOVERY for Render
+            const searchPaths = [
+                '/opt/render/.cache/puppeteer/chrome/linux-144.0.7559.96/chrome-linux64/chrome',
+                '/opt/render/.cache/puppeteer/chrome/linux-133.0.6943.53/chrome-linux64/chrome',
+                '/usr/bin/google-chrome',
+                '/usr/bin/chromium-browser'
+            ]
+
+            let executablePath = undefined
+            for (const p of searchPaths) {
+                if (fs.existsSync(p)) {
+                    executablePath = p
+                    console.log(`🚀 Puppeteer: Found Chrome at ${p}`)
+                    break
+                }
+            }
 
             browser = await puppeteer.launch({
                 headless: true,

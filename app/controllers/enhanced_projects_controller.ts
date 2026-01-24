@@ -576,7 +576,7 @@ export default class EnhancedProjectsController {
           FROM clips WHERE video_project_id = ? ORDER BY score DESC
         `, [projectId])
       } catch (err) {
-        console.warn(`⚠️ 'score' column query failed, falling back to 'engagement_score'`)
+        // Fallback for engagement_score
         clips = await databaseService.execute(`
           SELECT 
             id, title, start_time as startTime, end_time as endTime,
