@@ -38,12 +38,12 @@ export class YtDlpDownloader {
       }
     }
 
-    // Base yt-dlp command with Android client (most reliable on cloud IPs)
+    // Base yt-dlp command with Mobile Web identity (excellent reliability)
     const baseArgs = [
       '--no-check-certificates',
       '--no-cache-dir',
-      '--user-agent "com.google.android.youtube/19.11.38 (Linux; U; Android 11; en_US; Pixel 4 XL) Build/RP1A.200720.009"',
-      '--extractor-args "youtube:player-client=android,web"',
+      '--user-agent "Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1"',
+      '--extractor-args "youtube:player-client=mweb,web"',
       '--no-warnings',
       cookieFlag
     ].filter(Boolean).join(' ')

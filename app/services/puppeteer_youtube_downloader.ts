@@ -21,27 +21,43 @@ class PuppeteerYouTubeDownloader {
 
         let browser
         try {
-            // DYNAMIC PATH DISCOVERY for Render
-            const searchPaths = [
-                '/opt/render/.cache/puppeteer/chrome/linux-144.0.7559.96/chrome-linux64/chrome',
-                '/opt/render/.cache/puppeteer/chrome/linux-133.0.6943.53/chrome-linux64/chrome',
-                '/usr/bin/google-chrome',
-                '/usr/bin/chromium-browser'
-            ]
+            // DYNAMIC PATH DISCOVERY for Render (Version-Agnostic)
+            let executablePath: string | undefined = undefined
 
-            let executablePath = undefined
-            for (const p of searchPaths) {
-                if (fs.existsSync(p)) {
-                    executablePath = p
-                    console.log(`🚀 Puppeteer: Found Chrome at ${p}`)
-                    break
+            const findChromeInDir = (dir: string): string | null => {
+                if (!fs.existsSync(dir)) return null
+                try {
+                    const files = fs.readdirSync(dir)
+                    for (const file of files) {
+                        const fullPath = path.join(dir, file)
+                        const stat = fs.statSync(fullPath)
+                        if (stat.isDirectory()) {
+                            const found = findChromeInDir(fullPath)
+                            if (found) return found
+                        } else if (file === 'chrome' && (fullPath.includes('chrome-linux') || dir.endsWith('chrome-linux64'))) {
+                            return fullPath
+                        }
+                    }
+                } catch (e) { /* ignore restricted dirs */ }
+                return null
+            }
+
+            const possibleRoots = ['/opt/render/.cache/puppeteer', '/usr/bin/google-chrome', '/usr/bin/chromium-browser']
+            for (const root of possibleRoots) {
+                if (root.startsWith('/usr/bin')) {
+                    if (fs.existsSync(root)) { executablePath = root; break; }
+                } else {
+                    const found = findChromeInDir(root)
+                    if (found) { executablePath = found; break; }
                 }
             }
+
+            console.log(`🚀 Puppeteer: System check... ${executablePath ? `Found Chrome at ${executablePath}` : 'Chrome not found, using default'}`)
 
             browser = await puppeteer.launch({
                 headless: true,
                 executablePath,
-                args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+                args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
             })
 
             const page = await browser.newPage()
