@@ -567,13 +567,24 @@ export default class EnhancedProjectsController {
       const { projectId } = params
       response.header('Access-Control-Allow-Origin', '*')
 
-      // Use 'score' column as per migration
-      const clips = await databaseService.execute(`
-        SELECT 
-          id, title, start_time as startTime, end_time as endTime,
-          output_url as outputUrl, status, score, created_at as createdAt
-        FROM clips WHERE video_project_id = ? ORDER BY score DESC NULLS LAST
-      `, [projectId])
+      // Try 'score' column first, fallback to 'engagement_score'
+      let clips: any
+      try {
+        clips = await databaseService.execute(`
+          SELECT 
+            id, title, start_time as startTime, end_time as endTime,
+            output_url as outputUrl, status, score, created_at as createdAt
+          FROM clips WHERE video_project_id = ? ORDER BY score DESC NULLS LAST
+        `, [projectId])
+      } catch (err) {
+        console.warn(`⚠️ 'score' column missing in getClips, trying 'engagement_score'`)
+        clips = await databaseService.execute(`
+          SELECT 
+            id, title, start_time as startTime, end_time as endTime,
+            output_url as outputUrl, status, engagement_score as score, created_at as createdAt
+          FROM clips WHERE video_project_id = ? ORDER BY engagement_score DESC NULLS LAST
+        `, [projectId])
+      }
 
       return response.json({
         success: true,

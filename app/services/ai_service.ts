@@ -51,7 +51,7 @@ export class AiService {
             // Insert clips into database
             for (const data of clipsToCreate) {
                 try {
-                    // Use 'score' column as per migration
+                    // Try 'score' column first (new schema)
                     await databaseService.execute(`
                         INSERT INTO clips (video_project_id, title, start_time, end_time, status, score, output_url, created_at, updated_at)
                         VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
@@ -65,7 +65,24 @@ export class AiService {
                         data.outputUrl
                     ])
                 } catch (insertError: any) {
-                    console.error(`❌ Failed to insert clip: ${insertError.message}`)
+                    console.warn(`⚠️ Insert failed with 'score' column, trying 'engagement_score' fallback: ${insertError.message}`)
+                    try {
+                        // Fallback to 'engagement_score' (old schema)
+                        await databaseService.execute(`
+                            INSERT INTO clips (video_project_id, title, start_time, end_time, status, engagement_score, output_url, created_at, updated_at)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+                        `, [
+                            projectId,
+                            data.title,
+                            data.startTime,
+                            data.endTime,
+                            data.status,
+                            data.score,
+                            data.outputUrl
+                        ])
+                    } catch (fallbackError: any) {
+                        console.error(`❌ Complete failure to insert clip: ${fallbackError.message}`)
+                    }
                 }
             }
 
