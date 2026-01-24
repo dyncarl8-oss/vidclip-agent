@@ -226,50 +226,113 @@ class EnhancedVideoProcessor {
     try {
       console.log(`🎯 Trying ytdl-core download...`)
 
-      const info = existingMetadata || await ytdl.getInfo(youtubeUrl)
+      // Get info first with error handling
+      let info: any
+      try {
+        info = existingMetadata || await ytdl.getInfo(youtubeUrl)
+      } catch (infoError: any) {
+        throw new Error(`Failed to get video info: ${infoError.message}`)
+      }
+
+      // Check if formats exist
+      if (!info || !info.formats || info.formats.length === 0) {
+        throw new Error('No formats available for this video')
+      }
+
       const videoPath = path.join(this.downloadPath, `project_${projectId}_full.mp4`)
 
-      let format
-      try {
-        format = ytdl.chooseFormat(info.formats, {
-          quality: this.mapQuality(quality),
-          filter: 'audioandvideo'
-        })
-      } catch (e) {
-        format = ytdl.chooseFormat(info.formats, { filter: 'audioandvideo' })
+      // Try multiple format selection strategies
+      let format: any = null
+      const formatStrategies = [
+        // Strategy 1: audioandvideo with quality preference
+        () => {
+          const audioVideoFormats = info.formats.filter((f: any) =>
+            f.hasAudio && f.hasVideo
+          )
+          if (audioVideoFormats.length === 0) return null
+
+          const qualityNum = parseInt(quality.replace('p', ''))
+          const sorted = audioVideoFormats.sort((a: any, b: any) => {
+            const aHeight = a.height || 0
+            const bHeight = b.height || 0
+            const aDiff = Math.abs(aHeight - qualityNum)
+            const bDiff = Math.abs(bHeight - qualityNum)
+            return aDiff - bDiff
+          })
+          return sorted[0]
+        },
+        // Strategy 2: Any format with video
+        () => {
+          return info.formats.find((f: any) => f.hasVideo && f.hasAudio)
+        },
+        // Strategy 3: Best available
+        () => {
+          return info.formats[0]
+        },
+      ]
+
+      for (const strategy of formatStrategies) {
+        try {
+          format = strategy()
+          if (format) break
+        } catch (e) {
+          continue
+        }
       }
+
+      if (!format) {
+        throw new Error('No suitable format found')
+      }
+
+      console.log(`📥 ytdl-core: Using format ${format.qualityLabel || format.quality || 'unknown'}`)
 
       return new Promise<{ success: boolean, filePath: string, duration: number, metadata: any }>((resolve, reject) => {
         const stream = ytdl(youtubeUrl, { format })
         const writeStream = fs.createWriteStream(videoPath)
 
+        let bytesReceived = 0
+        stream.on('data', (chunk: any) => {
+          bytesReceived += chunk.length
+          if (bytesReceived % (1024 * 1024) === 0) {
+            console.log(`📊 ytdl-core: Downloaded ${(bytesReceived / (1024 * 1024)).toFixed(1)} MB`)
+          }
+        })
+
         stream.pipe(writeStream)
 
         writeStream.on('finish', () => {
-          const stats = fs.statSync(videoPath)
-          if (stats.size === 0) {
-            reject(new Error('Downloaded file is empty'))
-            return
-          }
-
-          // Fix duration conversion
-          const lengthSeconds = parseInt(info.videoDetails.lengthSeconds || '0', 10)
-
-          resolve({
-            success: true,
-            filePath: videoPath,
-            duration: lengthSeconds,
-            metadata: {
-              title: info.videoDetails.title,
-              author: info.videoDetails.author.name,
-              description: info.videoDetails.description,
-              thumbnail: info.videoDetails.thumbnails?.[0]?.url
+          try {
+            const stats = fs.statSync(videoPath)
+            if (stats.size === 0) {
+              reject(new Error('Downloaded file is empty'))
+              return
             }
-          })
+
+            // Fix duration conversion
+            const lengthSeconds = parseInt(info.videoDetails?.lengthSeconds || '0', 10)
+
+            resolve({
+              success: true,
+              filePath: videoPath,
+              duration: lengthSeconds,
+              metadata: {
+                title: info.videoDetails?.title || 'Unknown',
+                author: info.videoDetails?.author?.name || 'Unknown',
+                description: info.videoDetails?.description || '',
+                thumbnail: info.videoDetails?.thumbnails?.[0]?.url || ''
+              }
+            })
+          } catch (e: any) {
+            reject(new Error(`File verification failed: ${e.message}`))
+          }
         })
 
-        stream.on('error', reject)
-        writeStream.on('error', reject)
+        stream.on('error', (err: any) => {
+          reject(new Error(`Stream error: ${err.message}`))
+        })
+        writeStream.on('error', (err: any) => {
+          reject(new Error(`Write error: ${err.message}`))
+        })
       })
     } catch (error: any) {
       throw new Error(`ytdl-core download failed: ${error.message}`)
@@ -413,17 +476,7 @@ class EnhancedVideoProcessor {
     })
   }
 
-  // Helper: Map quality preferences
-  private mapQuality(quality: string): string {
-    const qualityMap: Record<string, string> = {
-      '1080p': '137',
-      '720p': '136',
-      '480p': '135',
-      '360p': '18',
-      '240p': '133'
-    }
-    return qualityMap[quality] || '18'
-  }
+
 
   // Helper: Generate crop filter
   private getCropFilter(targetWidth: number, targetHeight: number): string {

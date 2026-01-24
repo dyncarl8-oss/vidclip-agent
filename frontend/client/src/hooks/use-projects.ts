@@ -82,9 +82,10 @@ export function useDownloadStatus(projectId: number | null) {
             return response.data!;
         },
         enabled: projectId !== null,
-        refetchInterval: (data) => {
+        refetchInterval: (query) => {
             // Stop polling when download is complete
-            if (data?.state?.data?.readyForEditing) {
+            const data = query.state.data;
+            if (data?.readyForEditing || data?.status === 'completed') {
                 return false;
             }
             return 2000; // Poll every 2 seconds while downloading

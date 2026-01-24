@@ -137,7 +137,7 @@ export default function Editor() {
       setPendingClipEnd(null);
       setClipTitle("My Clip");
     } catch (error) {
-      setClips(prev => prev.filter(c => c.id !== clipId));
+      setLocalClips(prev => prev.filter(c => c.id !== clipId));
       toast({
         title: "Failed to render clip",
         description: (error as Error).message,
@@ -159,9 +159,14 @@ export default function Editor() {
     return `${m}:${s.toString().padStart(2, '0')}`;
   };
 
+  // Determine state - handle demo mode where clips exist but video doesn't
   const isReady = downloadStatus?.readyForEditing;
-  const isDownloading = downloadStatus?.status === 'downloading';
+  const isDownloading = downloadStatus?.status === 'downloading' || downloadStatus?.status === 'processing';
   const isFailed = project?.status === 'failed';
+  const isCompleted = project?.status === 'completed' || project?.status === 'clips_ready';
+  const hasClips = clips && clips.length > 0;
+  const isDemoMode = isCompleted && hasClips && !isReady;
+
 
   const handleResume = async () => {
     if (!projectId) return;
@@ -248,6 +253,36 @@ export default function Editor() {
               onClipSelect={handleClipSelect}
               className="flex-1"
             />
+          ) : isDemoMode ? (
+            /* Demo Mode: Video not available but clips are ready */
+            <div className="flex-1 flex items-center justify-center bg-gradient-to-b from-gray-900 to-gray-800">
+              <div className="text-center p-8 max-w-xl">
+                {project?.thumbnail && (
+                  <div className="relative w-64 h-36 mx-auto mb-6 rounded-lg overflow-hidden border border-primary/30">
+                    <img
+                      src={project.thumbnail}
+                      alt={project.title}
+                      className="w-full h-full object-cover opacity-70"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                  </div>
+                )}
+                <div className="flex items-center justify-center gap-2 mb-4">
+                  <Wand2 className="w-6 h-6 text-primary" />
+                  <h3 className="text-xl font-bold text-white">AI Clips Ready!</h3>
+                </div>
+                <p className="text-muted-foreground mb-4">
+                  Your AI-generated viral clips are ready to download!
+                  <br />
+                  <span className="text-sm text-yellow-400/80">
+                    (Video preview unavailable due to YouTube restrictions)
+                  </span>
+                </p>
+                <p className="text-sm text-primary mb-6">
+                  Check out the {clips.length} clips in the sidebar →
+                </p>
+              </div>
+            </div>
           ) : (
             <div className="flex-1 flex items-center justify-center bg-gray-900">
               <div className="text-center p-8">
@@ -283,7 +318,7 @@ export default function Editor() {
                   <>
                     <Loader2 className="w-16 h-16 text-primary animate-spin mx-auto mb-6" />
                     <h3 className="text-xl font-bold text-white mb-2">Processing</h3>
-                    <p className="text-muted-foreground">Setting up your video...</p>
+                    <p className="text-muted-foreground">Generating AI clips from your video...</p>
                   </>
                 )}
               </div>
