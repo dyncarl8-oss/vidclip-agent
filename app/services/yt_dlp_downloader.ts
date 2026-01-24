@@ -2,6 +2,7 @@ import { exec } from 'child_process'
 import { promisify } from 'util'
 import path from 'path'
 import fs from 'fs/promises'
+import fs_sync from 'fs'
 import env from '#start/env'
 
 const execAsync = promisify(exec)
@@ -12,14 +13,40 @@ export class YtDlpDownloader {
 
   constructor() {
     this.downloadDir = path.join(process.cwd(), 'storage', 'downloads')
+
+    // Check for cookies file or environment variable
+    const cookiesPath = path.join(process.cwd(), 'cookies.txt')
+    let cookieFlag = ''
+
+    if (fs_sync.existsSync(cookiesPath)) {
+      console.log('🍪 Using cookies.txt for yt-dlp')
+      cookieFlag = `--cookies "${cookiesPath}"`
+    } else if (process.env.YOUTUBE_COOKIES) {
+      console.log('🍪 Using YOUTUBE_COOKIES environment variable for yt-dlp')
+      const tempCookiesPath = path.join(process.cwd(), 'storage', 'temp_cookies.txt')
+
+      cookieFlag = `--cookies "${tempCookiesPath}"`
+
+      // Attempt to write if it doesn't exist
+      try {
+        if (!fs_sync.existsSync(path.dirname(tempCookiesPath))) {
+          fs_sync.mkdirSync(path.dirname(tempCookiesPath), { recursive: true })
+        }
+        fs_sync.writeFileSync(tempCookiesPath, process.env.YOUTUBE_COOKIES)
+      } catch (e) {
+        console.error('Failed to write temp cookies:', e)
+      }
+    }
+
     // Base yt-dlp command with stealth and compatibility flags
     const baseArgs = [
       '--no-check-certificates',
       '--no-cache-dir',
       '--user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"',
       '--extractor-args "youtube:player-client=web,mweb"',
-      '--no-warnings'
-    ].join(' ')
+      '--no-warnings',
+      cookieFlag
+    ].filter(Boolean).join(' ')
 
     const binary = env.get('YT_DLP_PATH') || 'yt-dlp'
     this.ytDlpPath = `${binary} ${baseArgs}`

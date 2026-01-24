@@ -2,10 +2,10 @@ import ytdl from '@distube/ytdl-core'
 import ffmpeg from 'fluent-ffmpeg'
 import path from 'path'
 import fs from 'fs'
-import db from '@adonisjs/lucid/services/db'
+import databaseService from './database_service.js'
 import { YtDlpDownloader } from './yt_dlp_downloader.js'
 import videoReferenceService from './video_reference_service.js'
-// import puppeteerDownloader from './puppeteer_youtube_downloader.js' // TODO: Implement later
+import puppeteerDownloader from './puppeteer_youtube_downloader.js'
 
 
 
@@ -271,12 +271,36 @@ class EnhancedVideoProcessor {
     }
   }
 
-  // Final fallback method using Puppeteer (commented out - not implemented yet)
-  async tryPuppeteerDownload(_youtubeUrl: string, _projectId: number, _quality: string) {
-    // For now, return failure since puppeteer is not implemented
-    return {
-      success: false,
-      error: 'Puppeteer downloader not implemented yet'
+  // Final fallback method using Puppeteer
+  async tryPuppeteerDownload(youtubeUrl: string, projectId: number, _quality: string) {
+    try {
+      this.updateProgress(projectId, 55, 'starting puppeteer fallback')
+      const result = await puppeteerDownloader.downloadVideo(youtubeUrl, projectId)
+
+      if (result.success && result.filePath) {
+        // Mock some metadata since puppeteer doesn't easily provide it
+        return {
+          success: true,
+          filePath: result.filePath,
+          duration: 0,
+          metadata: {
+            title: 'Puppeteer Downloaded Video',
+            author: 'Unknown',
+            description: 'Emergency fallback download',
+            thumbnail: ''
+          }
+        }
+      }
+
+      return {
+        success: false,
+        error: result.error || 'Puppeteer fallback failed'
+      }
+    } catch (error: any) {
+      return {
+        success: false,
+        error: `Puppeteer error: ${error.message}`
+      }
     }
   }
 
@@ -566,8 +590,9 @@ class EnhancedVideoProcessor {
 
       console.log(`🔄 Resuming download for project ${projectId}, videoId: ${videoId}`)
 
-      // Get project details from database
-      const project = await db.from('video_projects').where('id', projectId).first()
+      // Get project details from database using raw SQL
+      const projectResult = await databaseService.execute('SELECT youtube_url FROM video_projects WHERE id = ?', [projectId])
+      const project = projectResult.rows[0]
       if (!project) {
         return { success: false, error: 'Project not found' }
       }
@@ -620,12 +645,13 @@ class EnhancedVideoProcessor {
           console.log(`⚠️ Detected stuck download: ${videoId} (${ageMinutes.toFixed(1)} min old)`)
 
           // Find project with this video ID
-          const project = await db.from('video_projects')
-            .whereRaw('youtube_url LIKE ?', [`%${videoId}%`])
-            .andWhere('status', 'processing')
-            .first()
+          const projectResult = await databaseService.execute(
+            'SELECT id FROM video_projects WHERE youtube_url LIKE ? AND status = ?',
+            [`%${videoId}%`, 'processing']
+          )
 
-          if (project) {
+          if (projectResult.rows.length > 0) {
+            const project = projectResult.rows[0]
             console.log(`🔄 Auto-resuming stuck download for project ${project.id}`)
             await this.resumeDownload(project.id)
           }
@@ -654,8 +680,9 @@ class EnhancedVideoProcessor {
 
   private async extractVideoIdFromProject(projectId: number): Promise<string | null> {
     try {
-      // Query database for project's YouTube URL
-      const project = await db.from('video_projects').where('id', projectId).first()
+      // Query database for project's YouTube URL using raw SQL
+      const projectResult = await databaseService.execute('SELECT youtube_url FROM video_projects WHERE id = ?', [projectId])
+      const project = projectResult.rows[0]
 
       if (project && project.youtube_url) {
         // Extract video ID from YouTube URL
