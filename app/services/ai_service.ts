@@ -47,17 +47,32 @@ export class AiService {
             ]
 
             for (const data of clipsToCreate) {
-                await databaseService.execute(`
-                    INSERT INTO clips (video_project_id, title, start_time, end_time, status, score, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-                `, [
-                    projectId,
-                    data.title,
-                    data.startTime,
-                    data.endTime,
-                    'pending',
-                    data.score
-                ])
+                try {
+                    await databaseService.execute(`
+                        INSERT INTO clips (video_project_id, title, start_time, end_time, status, score, created_at, updated_at)
+                        VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+                    `, [
+                        projectId,
+                        data.title,
+                        data.startTime,
+                        data.endTime,
+                        'pending',
+                        data.score
+                    ])
+                } catch (err) {
+                    console.warn(`⚠️ 'score' column not found, falling back to 'engagement_score'`)
+                    await databaseService.execute(`
+                        INSERT INTO clips (video_project_id, title, start_time, end_time, status, engagement_score, created_at, updated_at)
+                        VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+                    `, [
+                        projectId,
+                        data.title,
+                        data.startTime,
+                        data.endTime,
+                        'pending',
+                        data.score
+                    ])
+                }
             }
 
             await databaseService.execute(`

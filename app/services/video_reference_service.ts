@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+import databaseService from '#services/database_service'
 
 interface VideoReference {
   projectId: number
@@ -30,29 +31,26 @@ class VideoReferenceService {
   async validateDatabaseConsistency(): Promise<{ fixed: number, errors: string[] }> {
     const errors: string[] = []
     let fixed = 0
-    
+
     try {
-      const { default: db } = await import('@adonisjs/lucid/services/db')
-      
       // 1. Fix projects with references but no video_file_path
       const referenceFiles = fs.readdirSync(this.referencesPath).filter(f => f.endsWith('.json'))
-      
+
       for (const refFile of referenceFiles) {
         try {
           const refData = JSON.parse(fs.readFileSync(path.join(this.referencesPath, refFile), 'utf8'))
           const projectId = refData.projectId
           const videoFile = refData.referenceTo
           const videoPath = path.join(process.cwd(), 'storage', 'downloads', videoFile)
-          
-          const project = await db.from('video_projects').where('id', projectId).first()
+
+          const projectResult = await databaseService.execute('SELECT id, video_file_path FROM video_projects WHERE id = ?', [projectId])
+          const project = projectResult.rows[0]
+
           if (project && !project.video_file_path) {
-            await db.from('video_projects')
-              .where('id', projectId)
-              .update({
-                video_file_path: videoPath,
-                status: 'completed',
-                updated_at: new Date()
-              })
+            await databaseService.execute(
+              'UPDATE video_projects SET video_file_path = ?, status = ?, updated_at = datetime("now") WHERE id = ?',
+              [videoPath, 'completed', projectId]
+            )
             fixed++
             console.log(`✅ Fixed reference project ${projectId}`)
           }
@@ -60,35 +58,33 @@ class VideoReferenceService {
           errors.push(`Failed to process reference ${refFile}: ${error.message}`)
         }
       }
-      
+
       // 2. Fix projects with existing videos but wrong status
       const videoFiles = fs.readdirSync(this.downloadsPath).filter(f => f.endsWith('.mp4'))
-      
+
       for (const videoFile of videoFiles) {
         const videoId = videoFile.split('_')[0]
         const videoPath = path.join(process.cwd(), 'storage', 'downloads', videoFile)
-        
-        const projects = await db.from('video_projects')
-          .whereRaw('youtube_url LIKE ?', [`%${videoId}%`])
-          .where('status', '!=', 'completed')
-        
-        for (const project of projects) {
-          await db.from('video_projects')
-            .where('id', project.id)
-            .update({
-              status: 'completed',
-              video_file_path: videoPath,
-              updated_at: new Date()
-            })
+
+        const projectsResult = await databaseService.execute(
+          "SELECT id FROM video_projects WHERE youtube_url LIKE ? AND status != 'completed'",
+          [`%${videoId}%`]
+        )
+
+        for (const project of projectsResult.rows) {
+          await databaseService.execute(
+            'UPDATE video_projects SET status = ?, video_file_path = ?, updated_at = datetime("now") WHERE id = ?',
+            ['completed', videoPath, project.id]
+          )
           fixed++
           console.log(`✅ Fixed video project ${project.id}`)
         }
       }
-      
+
     } catch (error) {
       errors.push(`Database validation failed: ${error.message}`)
     }
-    
+
     return { fixed, errors }
   }
 
@@ -107,29 +103,31 @@ class VideoReferenceService {
   }
 
   // Check if video already exists in downloads
-  findExistingVideo(youtubeUrl: string, quality: string = '720p', hasAudio: boolean = true): { type: 'master' | 'downloading' | 'reference', path: string } | null {
+  async findExistingVideo(youtubeUrl: string, quality: string = '720p', hasAudio: boolean = true): Promise<{ type: 'master' | 'downloading' | 'reference', path: string } | null> {
     const videoId = this.extractVideoId(youtubeUrl)
     const expectedFilename = `${videoId}_${quality}_${hasAudio}.mp4`
     const partFilename = `${expectedFilename}.part`
-    
+
     try {
+      if (!fs.existsSync(this.downloadsPath)) return null
       const downloadFiles = fs.readdirSync(this.downloadsPath)
-      
+
       // Check for completed file first
       if (downloadFiles.includes(expectedFilename)) {
         console.log(`🎯 Found completed video: ${expectedFilename}`)
         return { type: 'master', path: expectedFilename }
       }
-      
+
       // Check for downloading file (.part)
       if (downloadFiles.some(file => file.startsWith(`${videoId}_${quality}_${hasAudio}.mp4.part`))) {
         console.log(`⏳ Found downloading video: ${videoId}`)
         return { type: 'downloading', path: partFilename }
       }
-      
+
       console.log(`💾 No existing video found for ${videoId}`)
       return null
     } catch (error) {
+      console.error(`Error checking existing video:`, error)
       return null
     }
   }
@@ -150,7 +148,7 @@ class VideoReferenceService {
   ): Promise<string> {
     const videoId = this.extractVideoId(youtubeUrl)
     const originalProjectId = this.extractProjectIdFromFilename(existingFile)
-    
+
     const reference: VideoReference = {
       projectId,
       referenceTo: existingFile,
@@ -168,27 +166,23 @@ class VideoReferenceService {
 
     const referenceFile = `project_${projectId}_ref.json`
     const referencePath = path.join(this.referencesPath, referenceFile)
-    
+
     fs.writeFileSync(referencePath, JSON.stringify(reference, null, 2))
-    
-    // 🔧 FIX: Update database with reference path
+
+    // 🔧 FIX: Update database with reference path using databaseService
     try {
-      const { default: db } = await import('@adonisjs/lucid/services/db')
       const fullVideoPath = path.join(process.cwd(), 'storage', 'downloads', existingFile)
-      
-      await db.from('video_projects')
-        .where('id', projectId)
-        .update({
-          status: 'completed',
-          video_file_path: fullVideoPath,
-          updated_at: new Date()
-        })
-        
+
+      await databaseService.execute(
+        'UPDATE video_projects SET status = ?, video_file_path = ?, updated_at = datetime("now") WHERE id = ?',
+        ['completed', fullVideoPath, projectId]
+      )
+
       console.log(`✅ Updated database for reference project ${projectId}`)
     } catch (error) {
       console.error(`❌ Failed to update database for project ${projectId}:`, error)
     }
-    
+
     return referencePath
   }
 
@@ -200,7 +194,7 @@ class VideoReferenceService {
       try {
         const referenceData = JSON.parse(fs.readFileSync(referencePath, 'utf8')) as VideoReference
         const actualPath = path.join(this.downloadsPath, referenceData.referenceTo)
-        
+
         if (fs.existsSync(actualPath)) {
           return actualPath
         }
@@ -217,9 +211,9 @@ class VideoReferenceService {
 
     // NEW: Use database to find video file for this project
     try {
-      const db = (await import('@adonisjs/lucid/services/db')).default
-      const project = await db.from('video_projects').where('id', projectId).first()
-      
+      const projectResult = await databaseService.execute('SELECT youtube_url FROM video_projects WHERE id = ?', [projectId])
+      const project = projectResult.rows[0]
+
       if (project && project.youtube_url) {
         // Extract video ID from YouTube URL
         const match = project.youtube_url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\n?#]+)/)
@@ -227,7 +221,7 @@ class VideoReferenceService {
           const videoId = match[1]
           const expectedFile = `${videoId}_720p_true.mp4`
           const filePath = path.join(this.downloadsPath, expectedFile)
-          
+
           if (fs.existsSync(filePath)) {
             return filePath
           }
@@ -240,7 +234,7 @@ class VideoReferenceService {
     // Fallback: Check if this project created a master file (new naming pattern)
     try {
       const downloadFiles = fs.readdirSync(this.downloadsPath)
-      
+
       // Look for video files with new naming pattern
       for (const file of downloadFiles) {
         if (file.endsWith('.mp4') && file.includes('_720p_true')) {
@@ -268,16 +262,16 @@ class VideoReferenceService {
     try {
       const downloadFiles = fs.readdirSync(this.downloadsPath).filter(f => f.endsWith('.mp4'))
       const referenceFiles = fs.readdirSync(this.referencesPath).filter(f => f.endsWith('.json'))
-      
+
       let totalSize = 0
       const masterFiles: any[] = []
-      
+
       // Calculate master files size
       downloadFiles.forEach(file => {
         const filePath = path.join(this.downloadsPath, file)
         const stats = fs.statSync(filePath)
         totalSize += stats.size
-        
+
         masterFiles.push({
           filename: file,
           size: this.formatBytes(stats.size),
@@ -308,8 +302,8 @@ class VideoReferenceService {
         referenceFiles: referenceFiles.length,
         totalProjects: masterFiles.length + referenceFiles.length,
         totalSize: this.formatBytes(totalSize),
-        storageEfficiency: referenceFiles.length > 0 ? 
-          `${((referenceFiles.length / (masterFiles.length + referenceFiles.length)) * 100).toFixed(1)}% space saved` : 
+        storageEfficiency: referenceFiles.length > 0 ?
+          `${((referenceFiles.length / (masterFiles.length + referenceFiles.length)) * 100).toFixed(1)}% space saved` :
           'No references yet',
         masters: masterFiles,
         references: references
@@ -337,50 +331,49 @@ class VideoReferenceService {
     try {
       const downloadFiles = fs.readdirSync(this.downloadsPath)
       const referenceFiles = fs.readdirSync(this.referencesPath)
-      
+
       const masters = []
       const references = []
       let totalSize = 0
-      
+
       // Process master files
       for (const file of downloadFiles) {
         if (file.endsWith('.mp4')) {
           const filePath = path.join(this.downloadsPath, file)
           const stats = fs.statSync(filePath)
           const sizeInMB = (stats.size / (1024 * 1024)).toFixed(2)
-          
+
           // Extract video ID from filename to find associated project
           const videoIdMatch = file.match(/^([^_]+)_/)
           let projectId = null
-          
+
           if (videoIdMatch) {
             const videoId = videoIdMatch[1]
             // Find project that created this master file
             try {
-              const db = (await import('@adonisjs/lucid/services/db')).default
-              const project = await db.from('video_projects')
-                .whereRaw("youtube_url LIKE ?", [`%${videoId}%`])
-                .orderBy('created_at', 'asc')
-                .first()
-              
-              if (project) {
-                projectId = project.id
+              const projectResult = await databaseService.execute(
+                "SELECT id FROM video_projects WHERE youtube_url LIKE ? ORDER BY created_at ASC LIMIT 1",
+                [`%${videoId}%`]
+              )
+
+              if (projectResult.rows.length > 0) {
+                projectId = projectResult.rows[0].id
               }
             } catch (error) {
               // Ignore database errors
             }
           }
-          
+
           masters.push({
             filename: file,
             size: `${sizeInMB} MB`,
             projectId: projectId
           })
-          
+
           totalSize += stats.size
         }
       }
-      
+
       // Process reference files
       for (const file of referenceFiles) {
         if (file.endsWith('.json')) {
@@ -396,12 +389,12 @@ class VideoReferenceService {
           }
         }
       }
-      
+
       const totalSizeMB = (totalSize / (1024 * 1024)).toFixed(2)
-      const efficiency = references.length > 0 
+      const efficiency = references.length > 0
         ? `${Math.round((references.length / (masters.length + references.length)) * 100)}% space saved`
         : 'No references yet'
-      
+
       return {
         masterFiles: masters.length,
         referenceFiles: references.length,
