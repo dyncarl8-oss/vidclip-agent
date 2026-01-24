@@ -8,6 +8,7 @@ import {
     getVideoInfo,
     resumeDownload,
     getProjectClips,
+    deleteProject,
 } from '@/lib/api';
 import type { CreateProjectRequest, Project } from '@/lib/types';
 
@@ -148,6 +149,26 @@ export function useProjectClips(projectId: number | null) {
             const clips = query.state.data;
             if (!clips || clips.length === 0) return 5000;
             return false;
+        },
+    });
+}
+/**
+ * Delete a project
+ */
+export function useDeleteProject() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (projectId: number) => {
+            const response = await deleteProject(projectId);
+            if (!response.success) {
+                throw new Error(response.error || 'Failed to delete project');
+            }
+            return response.data;
+        },
+        onSuccess: () => {
+            // Invalidate projects list to refetch
+            queryClient.invalidateQueries({ queryKey: ['projects'] });
         },
     });
 }

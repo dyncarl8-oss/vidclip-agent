@@ -237,6 +237,7 @@ router.get('/v2/projects/:projectId/download-status', [EnhancedProjectsControlle
 router.get('/v2/projects/:projectId/clips', [EnhancedProjectsController, 'getClips'])  // Get project clips
 router.post('/v2/projects/:projectId/resume', [EnhancedProjectsController, 'resumeDownload'])  // Resume failed download
 router.get('/v2/projects/:projectId/stream', [EnhancedProjectsController, 'streamForEditing'])  // Step 3: Stream for editing
+router.delete('/v2/projects/:projectId', [EnhancedProjectsController, 'delete'])  // Step 5: Delete project
 router.post('/v2/projects/:projectId/batch-clips', [EnhancedProjectsController, 'batchProcessClips'])  // Step 4: Batch process
 
 // System maintenance

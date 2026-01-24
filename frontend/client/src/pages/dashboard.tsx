@@ -2,15 +2,21 @@ import { Navbar, Sidebar } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { Plus, Upload, Link as LinkIcon, Clock, MoreVertical, Play, Film, Loader2, RefreshCw, AlertCircle } from "lucide-react";
+import { Plus, Upload, Link as LinkIcon, Clock, MoreVertical, Play, Film, Loader2, RefreshCw, AlertCircle, Trash2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { useProjects, useCreateProject, useVideoInfo } from "@/hooks/use-projects";
-import type { Project, VideoInfo } from "@/lib/types";
+import { useProjects, useCreateProject, useVideoInfo, useDeleteProject } from "@/hooks/use-projects";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import type { Project } from "@/lib/types";
 
 export default function Dashboard() {
   const [, setLocation] = useLocation();
@@ -18,21 +24,20 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <Navbar />
       <Sidebar />
 
-      <main className="pt-20 md:pl-64 min-h-screen">
+      <main className="md:pl-64 min-h-screen">
         <div className="container mx-auto px-4 py-8 max-w-6xl">
 
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-12">
             <div>
-              <h1 className="text-3xl font-display font-bold text-white mb-2">My Projects</h1>
-              <p className="text-muted-foreground">Manage your videos and generated clips.</p>
+              <h1 className="text-4xl font-display font-bold text-white mb-2">My Projects</h1>
+              <p className="text-muted-foreground">Manage your videos and viral AI clips.</p>
             </div>
 
             <div className="flex gap-2">
-              <Button variant="outline" size="icon" onClick={() => refetch()}>
-                <RefreshCw className="w-4 h-4" />
+              <Button variant="outline" size="icon" onClick={() => refetch()} className="h-12 w-12 border-white/10 hover:bg-white/5 text-white">
+                <RefreshCw className="w-5 h-5" />
               </Button>
               <NewProjectDialog />
             </div>
@@ -79,7 +84,7 @@ export default function Dashboard() {
                 <ProjectCard
                   key={project.id}
                   project={project}
-                  onClick={() => setLocation(`/editor/${project.id}`)}
+                  onOpen={() => setLocation(`/editor/${project.id}`)}
                 />
               ))}
             </div>
@@ -161,7 +166,7 @@ function NewProjectDialog() {
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button size="lg" className="bg-primary text-black font-bold shadow-lg shadow-primary/20 hover:shadow-primary/40 transition-all">
+        <Button size="lg" className="h-12 bg-primary text-black font-bold shadow-lg shadow-primary/20 hover:shadow-primary/40 transition-all px-8 rounded-full">
           <Plus className="mr-2 w-5 h-5" /> New Project
         </Button>
       </DialogTrigger>
@@ -243,7 +248,7 @@ function NewProjectDialog() {
             )}
 
             <Button
-              className="w-full bg-primary text-black font-bold"
+              className="w-full bg-primary text-black font-bold h-12 rounded-lg"
               onClick={handleCreate}
               disabled={!url || createProject.isPending}
             >
@@ -282,12 +287,26 @@ function NewProjectDialog() {
 
 interface ProjectCardProps {
   project: Project;
-  onClick: () => void;
+  onOpen: () => void;
 }
 
-function ProjectCard({ project, onClick }: ProjectCardProps) {
+function ProjectCard({ project, onOpen }: ProjectCardProps) {
   const isProcessing = project.status === 'processing' || project.status === 'pending';
   const isFailed = project.status === 'failed';
+  const { toast } = useToast();
+  const deleteProject = useDeleteProject();
+
+  const handleProjectDelete = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!window.confirm("Are you sure you want to delete this project?")) return;
+
+    try {
+      await deleteProject.mutateAsync(project.id);
+      toast({ title: "Project deleted", description: "The project has been successfully removed." });
+    } catch (err: any) {
+      toast({ title: "Failed to delete project", description: err.message, variant: "destructive" });
+    }
+  };
 
   const formatDuration = (seconds: number): string => {
     if (!seconds) return '--:--';
@@ -317,7 +336,7 @@ function ProjectCard({ project, onClick }: ProjectCardProps) {
     <Card
       className={`overflow-hidden border-white/5 bg-card transition-all group cursor-pointer ${isFailed ? 'border-red-500/30 hover:border-red-500/50' : 'hover:border-primary/30'
         }`}
-      onClick={onClick}
+      onClick={onOpen}
     >
       <div className="aspect-video bg-black relative">
         {project.thumbnail ? (
@@ -354,13 +373,27 @@ function ProjectCard({ project, onClick }: ProjectCardProps) {
       </div>
 
       <CardContent className="p-4">
-        <div className="flex justify-between items-start mb-2">
-          <h3 className="font-bold text-lg text-white line-clamp-1 group-hover:text-primary transition-colors">
+        <div className="flex justify-between items-start mb-2 gap-2">
+          <h3 className="font-bold text-lg text-white line-clamp-1 group-hover:text-primary transition-colors flex-1 min-w-0">
             {project.title}
           </h3>
-          <Button variant="ghost" size="icon" className="h-8 w-8 -mt-1 -mr-2 text-muted-foreground hover:text-white" onClick={(e) => e.stopPropagation()}>
-            <MoreVertical className="w-4 h-4" />
-          </Button>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+              <Button variant="ghost" size="icon" className="h-8 w-8 -mt-1 -mr-2 text-muted-foreground hover:text-white">
+                <MoreVertical className="w-4 h-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="bg-card border-border">
+              <DropdownMenuItem
+                className="text-red-400 focus:text-red-400 focus:bg-red-400/10 cursor-pointer"
+                onClick={handleProjectDelete}
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Delete Project
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
         <div className="flex items-center justify-between text-sm text-muted-foreground">
           <span>{formatDate(project.createdAt)}</span>
@@ -373,3 +406,4 @@ function ProjectCard({ project, onClick }: ProjectCardProps) {
     </Card>
   );
 }
+

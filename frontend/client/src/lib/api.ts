@@ -119,6 +119,17 @@ export async function getProjectClips(
 }
 
 /**
+ * Delete a project and its clips
+ */
+export async function deleteProject(
+    projectId: number
+): Promise<ApiResponse<{ success: boolean }>> {
+    return fetchApi<{ success: boolean }>(`/v2/projects/${projectId}`, {
+        method: 'DELETE',
+    });
+}
+
+/**
  * Get video stream URL for a project
  */
 export function getVideoStreamUrl(projectId: number): string {

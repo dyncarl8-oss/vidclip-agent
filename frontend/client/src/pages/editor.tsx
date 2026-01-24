@@ -209,26 +209,24 @@ export default function Editor() {
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col h-screen overflow-hidden">
-      <Navbar />
-
       {/* Editor Header */}
-      <div className="h-16 border-b border-border bg-card/50 flex items-center justify-between px-4 pt-16">
+      <div className="h-16 border-b border-border bg-card/50 flex items-center justify-between px-4">
         <div className="flex items-center gap-4">
           <Link href="/dashboard">
-            <Button variant="ghost" size="icon">
-              <ArrowLeft className="w-5 h-5" />
+            <Button variant="ghost" size="icon" className="hover:bg-white/5">
+              <ArrowLeft className="w-5 h-5 text-white" />
             </Button>
           </Link>
           <div>
             <h2 className="font-bold text-white leading-tight">{project.title}</h2>
-            <p className="text-xs text-muted-foreground">
-              {isReady ? 'Ready for editing' : isDownloading ? `Downloading... ${downloadStatus?.progress || 0}%` : 'Processing...'}
+            <p className="text-[10px] uppercase tracking-wider text-primary font-bold">
+              {isReady ? 'Ready for editing' : isDownloading ? `Downloading... ${downloadStatus?.progress || 0}%` : 'Analysis Active'}
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="hidden md:flex">
+          <Button variant="outline" size="sm" className="hidden md:flex bg-transparent border-white/10 hover:bg-white/5 text-white">
             <Share2 className="w-4 h-4 mr-2" /> Share
           </Button>
           <Button

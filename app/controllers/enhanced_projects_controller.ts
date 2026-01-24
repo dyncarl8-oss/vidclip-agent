@@ -318,15 +318,12 @@ export default class EnhancedProjectsController {
         console.log(`✨ Video downloaded. Triggering auto-clipping for project ${projectId}`)
         await aiService.generateAutoClips(projectId)
       } else {
-        // [DEMO MODE FALLBACK]
-        console.log(`⚠️ Download failed for project ${projectId}, entering DEMO MODE for AI clips...`)
-        await databaseService.execute(`
-          UPDATE video_projects SET status = 'processing', updated_at = datetime('now') WHERE id = ?
-        `, [projectId])
-
-        await aiService.generateAutoClips(projectId)
-
+        // [FAILURE STATE]
         console.log(`❌ Download failed for project ${projectId} using ${downloader}: ${(result as any).error || 'Unknown error'}`)
+
+        await databaseService.execute(`
+          UPDATE video_projects SET status = 'failed', updated_at = datetime('now') WHERE id = ?
+        `, [projectId])
       }
 
     } catch (error) {
@@ -594,6 +591,39 @@ export default class EnhancedProjectsController {
       return response.status(500).json({
         success: false,
         message: 'Failed to retrieve clips',
+        error: error.message
+      })
+    }
+  }
+
+  // Delete project
+  async delete({ params, response }: HttpContext) {
+    try {
+      const { projectId } = params
+      response.header('Access-Control-Allow-Origin', '*')
+
+      // Delete clips first (foreign key constraint)
+      await databaseService.execute('DELETE FROM clips WHERE video_project_id = ?', [projectId])
+
+      // Delete project
+      const result = await databaseService.execute('DELETE FROM video_projects WHERE id = ?', [projectId])
+
+      if (result.rowsAffected === 0) {
+        return response.status(404).json({
+          success: false,
+          message: 'Project not found or already deleted'
+        })
+      }
+
+      return response.json({
+        success: true,
+        message: 'Project and associated clips deleted successfully'
+      })
+    } catch (error) {
+      console.error(`❌ Failed to delete project ${params.projectId}:`, error)
+      return response.status(500).json({
+        success: false,
+        message: 'Failed to delete project',
         error: error.message
       })
     }

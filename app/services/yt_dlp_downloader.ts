@@ -39,9 +39,15 @@ export class YtDlpDownloader {
           cookieContent = cookieContent.replace(/\\n/g, '\n')
           // Replace literal \t with actual tabs
           cookieContent = cookieContent.replace(/\\t/g, '\t')
+          // Replace literal \t with actual tabs
+          cookieContent = cookieContent.replace(/\\t/g, '\t')
           fs_sync.writeFileSync(tempCookiesPath, cookieContent, 'utf8')
           this.cookiesPath = tempCookiesPath
           console.log('✅ Cookies file written successfully')
+
+          // Debug Verify: show first line of cookie file (sanitized) to confirm format
+          const firstLine = cookieContent.split('\n')[0]
+          console.log(`🍪 Cookie Debug: First line starts with: ${firstLine.substring(0, 20)}...`)
         }
       } catch (e) {
         console.error('❌ Failed to write temp cookies:', e)
@@ -58,11 +64,13 @@ export class YtDlpDownloader {
       '--no-check-certificates',
       '--no-cache-dir',
       '--socket-timeout 30',
-      '--retries 3',
-      '--fragment-retries 3',
+      '--retries 5', // Increase retries
+      '--fragment-retries 5',
       '--no-warnings',
       '--no-playlist',
       '--geo-bypass',
+      '--add-header "Accept-Language: en-US,en;q=0.9"',
+      '--add-header "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7"',
     ]
 
     // Add cookies if available
@@ -84,15 +92,15 @@ export class YtDlpDownloader {
 
     // Try multiple strategies in order
     const strategies = [
-      // Strategy 1: Standard download with cookies
+      // Strategy 1: High-fidelity Desktop Chrome (Matches most exported cookies)
       () => this.tryDownload(url, outputPath, quality, [
-        '--user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"',
+        '--user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36"',
         '--extractor-args "youtube:player-client=web"',
       ]),
-      // Strategy 2: Mobile web client (often less restricted)
+      // Strategy 2: Alternate Desktop UA
       () => this.tryDownload(url, outputPath, quality, [
-        '--user-agent "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36"',
-        '--extractor-args "youtube:player-client=mweb"',
+        '--user-agent "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36"',
+        '--extractor-args "youtube:player-client=web,mweb"',
       ]),
       // Strategy 3: Android client (bypass some restrictions)
       () => this.tryDownload(url, outputPath, quality, [
