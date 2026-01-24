@@ -9,9 +9,10 @@ export class AiService {
         console.log(`🤖 AI Analysis started for project ${projectId}`)
 
         try {
-            const projectResult = await databaseService.execute('SELECT id, duration FROM video_projects WHERE id = ?', [projectId])
+            const projectResult = await databaseService.execute('SELECT id, duration, video_file_path FROM video_projects WHERE id = ?', [projectId])
             if (projectResult.rows.length === 0) return
             const project = projectResult.rows[0] as any
+            const isDemoMode = !project.video_file_path
 
             // Simulate AI analysis time
             await new Promise(resolve => setTimeout(resolve, 5000))
@@ -48,29 +49,37 @@ export class AiService {
 
             for (const data of clipsToCreate) {
                 try {
+                    const clipStatus = isDemoMode ? 'completed' : 'pending'
+                    const outputUrl = isDemoMode ? 'https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4' : null
+
                     await databaseService.execute(`
-                        INSERT INTO clips (video_project_id, title, start_time, end_time, status, score, created_at, updated_at)
-                        VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+                        INSERT INTO clips (video_project_id, title, start_time, end_time, status, score, output_url, created_at, updated_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
                     `, [
                         projectId,
                         data.title,
                         data.startTime,
                         data.endTime,
-                        'pending',
-                        data.score
+                        clipStatus,
+                        data.score,
+                        outputUrl
                     ])
                 } catch (err) {
                     console.warn(`⚠️ 'score' column not found, falling back to 'engagement_score'`)
+                    const clipStatus = isDemoMode ? 'completed' : 'pending'
+                    const outputUrl = isDemoMode ? 'https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4' : null
+
                     await databaseService.execute(`
-                        INSERT INTO clips (video_project_id, title, start_time, end_time, status, engagement_score, created_at, updated_at)
-                        VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+                        INSERT INTO clips (video_project_id, title, start_time, end_time, status, engagement_score, output_url, created_at, updated_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
                     `, [
                         projectId,
                         data.title,
                         data.startTime,
                         data.endTime,
-                        'pending',
-                        data.score
+                        clipStatus,
+                        data.score,
+                        outputUrl
                     ])
                 }
             }

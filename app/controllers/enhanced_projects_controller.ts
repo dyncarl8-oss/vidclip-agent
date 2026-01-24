@@ -567,20 +567,23 @@ export default class EnhancedProjectsController {
       const { projectId } = params
       response.header('Access-Control-Allow-Origin', '*')
 
-      const clips = await databaseService.execute(`
-        SELECT 
-          id,
-          title,
-          start_time as startTime,
-          end_time as endTime,
-          output_url as outputUrl,
-          status,
-          score,
-          created_at as createdAt
-        FROM clips 
-        WHERE video_project_id = ?
-        ORDER BY score DESC
-      `, [projectId])
+      let clips: any
+      try {
+        clips = await databaseService.execute(`
+          SELECT 
+            id, title, start_time as startTime, end_time as endTime,
+            output_url as outputUrl, status, score, created_at as createdAt
+          FROM clips WHERE video_project_id = ? ORDER BY score DESC
+        `, [projectId])
+      } catch (err) {
+        console.warn(`⚠️ 'score' column query failed, falling back to 'engagement_score'`)
+        clips = await databaseService.execute(`
+          SELECT 
+            id, title, start_time as startTime, end_time as endTime,
+            output_url as outputUrl, status, engagement_score as score, created_at as createdAt
+          FROM clips WHERE video_project_id = ? ORDER BY engagement_score DESC
+        `, [projectId])
+      }
 
       return response.json({
         success: true,

@@ -18,7 +18,8 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "typecheck": "tsc --noEmit",
-    "ace": "node ace"
+    "ace": "node ace",
+    "render-postbuild": "npx puppeteer browsers install chrome"
   },
   "imports": {
     "#controllers/*": "./app/controllers/*.js",
