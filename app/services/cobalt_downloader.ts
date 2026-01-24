@@ -9,7 +9,6 @@ import http from 'http'
  */
 class CobaltDownloader {
     private downloadDir: string
-    private apiEndpoint: string = 'https://api.cobalt.tools/api/json'
 
     constructor() {
         this.downloadDir = path.join(process.cwd(), 'storage', 'downloads')
