@@ -21,9 +21,14 @@ class PuppeteerYouTubeDownloader {
 
         let browser
         try {
+            // Path where 'npx puppeteer browsers install chrome' puts it on Render
+            const renderChromePath = '/opt/render/.cache/puppeteer/chrome/linux-144.0.7559.96/chrome-linux64/chrome'
+            const executablePath = (fs as any).existsSync(renderChromePath) ? renderChromePath : undefined
+
             browser = await puppeteer.launch({
                 headless: true,
-                args: ['--no-sandbox', '--disable-setuid-sandbox']
+                executablePath,
+                args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
             })
 
             const page = await browser.newPage()
